@@ -14,8 +14,8 @@ import (
 func convertJSON() ([]PVEObject, error) {
 	envVar, ok := os.LookupEnv("OBJECTS_JSON")
 	if !ok {
-		log.Println("No data found in OBJECTS_JSON")
-		return nil, fmt.Errorf("no data found in OBJECTS_JSON")
+		log.Println("No data found in OBJECTS_JSON variable")
+		return nil, fmt.Errorf("no data found in OBJECTS_JSON variable")
 	}
 
 	var objects []PVEObject

@@ -32,7 +32,7 @@ func lxcSummary(c *gin.Context) {
 			}
 			for _, node := range datacenterNodes.Data {
 				if node.Status != "online" {
-					log.Printf("Skipping node %s - its either offline or not reachable", node.Node)
+					log.Printf("Skipping node %s - its offline", node.Node)
 					continue
 				}
 				lxcNodeUrl := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/lxc", obj.Name, obj.Port, node.Node)
@@ -47,9 +47,11 @@ func lxcSummary(c *gin.Context) {
 					log.Printf("Failed to perform the HTTP call for %s - %v", node.Node, err)
 					continue
 				}
-				defer res.Body.Close()
+				// Its inside the loop - dont use it - https://stackoverflow.com/questions/45617758/proper-way-to-release-resources-with-defer-in-a-loop
+				//defer res.Body.Close()
 
 				resp, err := io.ReadAll(res.Body)
+				res.Body.Close()
 				if err != nil {
 					log.Printf("Failed to read the response body for %s - %v", node.Node, err)
 					continue

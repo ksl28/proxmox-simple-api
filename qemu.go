@@ -23,46 +23,68 @@ func vmSummary(c *gin.Context) {
 	for _, obj := range jsonObjects {
 		v, _ := testHostPort(obj.Name, obj.Port)
 		if v {
-			customUrl := fmt.Sprintf("https://%v:%d/api2/json/nodes", obj.Name, obj.Port)
-			req, _ := http.NewRequest("GET", customUrl, nil)
-			req.Header.Add("Authorization", obj.Token)
-			resp, err := httpClient.Do(req)
+			datacenterNodes, err := getDatacenterNodes(obj.Name, obj.Port, obj.Token)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to conver the JSON data - %v", err)})
-				return
-			}
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				//glbError = append(glbError, err)
-				//c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to decode the response %v", err)})
+				log.Printf("Failed to obtain the datacenter nodes for %s - %v", obj.Name, err)
 				continue
 			}
-			defer resp.Body.Close()
 
-			var nodes nodesStruct
-			if err := json.Unmarshal(body, &nodes); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to decode the response %v", err)})
-				return
-			}
+			// customUrl := fmt.Sprintf("https://%v:%d/api2/json/nodes", obj.Name, obj.Port)
+			// req, err := http.NewRequest("GET", customUrl, nil)
+			// if err != nil {
+			// 	log.Printf("Failed to create the HTTP request in vmSummary - %s - %v", customUrl, err)
 
-			for _, singleNode := range nodes.Data {
-				singleNodeUrl := fmt.Sprintf("https://%v:%d/api2/json/nodes/%v/qemu", obj.Name, obj.Port, singleNode.Node)
-				fmt.Println(singleNodeUrl)
+			// }
+			// req.Header.Add("Authorization", obj.Token)
+			// resp, err := httpClient.Do(req)
+			// if err != nil {
+			// 	c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to conver the JSON data - %v", err)})
+			// 	return
+			// }
+			// body, err := io.ReadAll(resp.Body)
+			// if err != nil {
+			// 	//glbError = append(glbError, err)
+			// 	//c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to decode the response %v", err)})
+			// 	continue
+			// }
+			// defer resp.Body.Close()
 
-				req, _ := http.NewRequest("GET", singleNodeUrl, nil)
-				req.Header.Add("Authorization", obj.Token)
-				resp, err := httpClient.Do(req)
-				if err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to obtain the data for %v", singleNode)})
+			// var nodes nodesStruct
+			// if err := json.Unmarshal(body, &nodes); err != nil {
+			// 	c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to decode the response %v", err)})
+			// 	return
+			// }
+
+			for _, singleNode := range datacenterNodes.Data {
+				if singleNode.Status != "online" {
+					log.Printf("Skipping node %s (offline)", singleNode.Node)
+					continue
 				}
-
-				body, err := io.ReadAll(resp.Body)
+				singleNodeUrl := fmt.Sprintf("https://%v:%d/api2/json/nodes/%v/qemu", obj.Name, obj.Port, singleNode.Node)
+				req, err := http.NewRequest(http.MethodGet, singleNodeUrl, nil)
 				if err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to read the body for %v", singleNode)})
+					log.Printf("Failed to create HTTP request for %v - %v", singleNode.Node, err)
+					continue
+				}
+				req.Header.Add("Authorization", obj.Token)
+				res, err := httpClient.Do(req)
+				if err != nil {
+					log.Printf("Failed to perform HTTP request for %v - %v", singleNode.Node, err)
+					continue
+				}
+				defer res.Body.Close()
+
+				body, err := io.ReadAll(res.Body)
+				if err != nil {
+					log.Printf("Failed to read HTTP response body for %v - %v", singleNode.Node, err)
+					continue
 				}
 
 				var nodeVms VmSummaryRootStruct
-				json.Unmarshal(body, &nodeVms)
+				if err := json.Unmarshal(body, &nodeVms); err != nil {
+					log.Printf("Failed to unmarshal JSON for %v - %v", singleNode.Node, err)
+					continue
+				}
 
 				for i, _ := range nodeVms.Data {
 					nodeVms.Data[i].Parent = obj.Name
@@ -106,15 +128,18 @@ func vmDetailedOverview(c *gin.Context) {
 					log.Printf("Failed to get cluster nodes for %s - %v", jsonObject.Name, err)
 					return
 				}
-				fmt.Println(datacenterNodes)
 				var vmObj GuestInfo
-				for _, clusterNode := range datacenterNodes.Data {
-					nodeGuests, err := nodeGuests("qemu", jsonObject.Name, jsonObject.Port, clusterNode.Node, jsonObject.Token)
+				for _, datacenterNode := range datacenterNodes.Data {
+					if datacenterNode.Status != "online" {
+						log.Printf("Skipping node %s (offline)", datacenterNode.Node)
+						continue
+					}
+					guestsResult, err := nodeGuestsOverview("qemu", jsonObject.Name, jsonObject.Port, datacenterNode.Node, jsonObject.Token)
 					if err != nil {
 						log.Printf("Failed to get the guests for %v - %v", jsonObject.Name, err)
-						return
+						continue
 					} else {
-						for _, guest := range nodeGuests.Data {
+						for _, guest := range guestsResult.Data {
 							if strconv.Itoa(guest.Vmid) == qemuId {
 								vmObj = guest
 							}
@@ -172,8 +197,6 @@ func vmDetailedOverview(c *gin.Context) {
 						qemuCombined.NetworkInfo = qemuIpInfo.Data.Result
 					}
 
-					fmt.Println(result.Data)
-
 					result.Data = qemuCombined
 				}
 			}
@@ -187,7 +210,8 @@ func qemuCurrentStatus(qemuId int, parent string, port int, node string, apiToke
 	url := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/qemu/%v/status/current", parent, port, node, qemuId)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		fmt.Println("Failed to convert the link")
+		log.Printf("Failed to create HTTP request for qemuCurrentStatus - %v", err)
+		return qemuCurrentStatusStruct{}, err
 	}
 
 	req.Header.Add("Authorization", apiToken)
@@ -215,23 +239,27 @@ func qemuGuestHostName(qemuId int, parent string, port int, node string, apiToke
 	url := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/qemu/%v/agent/get-host-name", parent, port, node, qemuId)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
+		log.Printf("Failed to create HTTP request for qemuGuestHostName - %s - %v", url, err)
 		return qemuHostNameStruct{}, err
 	}
 
 	req.Header.Add("Authorization", apiToken)
 	res, err := httpClient.Do(req)
 	if err != nil {
+		log.Printf("Failed to perform the HTTP request for qemuGuestHostName - %s - %v", url, err)
 		return qemuHostNameStruct{}, err
 	}
 	defer res.Body.Close()
 
 	response, err := io.ReadAll(res.Body)
 	if err != nil {
+		log.Printf("Failed to read the HTTP response for qemuGuestHostName - %s - %v", url, err)
 		return qemuHostNameStruct{}, err
 	}
 
 	var qemuHostName qemuHostNameStruct
 	if err := json.Unmarshal(response, &qemuHostName); err != nil {
+		log.Printf("Failed to unmarshal the JSON data for qemuGuestHostName - %s - %v", url, err)
 		return qemuHostNameStruct{}, err
 	}
 	return qemuHostName, nil
@@ -241,23 +269,27 @@ func qemuGuestOsInfo(qemuId int, parent string, port int, node string, apiToken 
 	url := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/qemu/%v/agent/get-osinfo", parent, port, node, qemuId)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		fmt.Println("Failed to convert the link")
+		log.Printf("Failed to create HTTP request for qemuGuestOsInfo - %s - %v", url, err)
+		return qemuOSInfoStruct{}, err
 	}
 
 	req.Header.Add("Authorization", apiToken)
 	res, err := httpClient.Do(req)
 	if err != nil {
+		log.Printf("Failed to perform the HTTP request for qemuGuestOsInfo - %s - %v", url, err)
 		return qemuOSInfoStruct{}, err
 	}
 	defer res.Body.Close()
 
 	response, err := io.ReadAll(res.Body)
 	if err != nil {
+		log.Printf("Failed to read the HTTP respeons for qemuGuestOsInfo - %s - %v", url, err)
 		return qemuOSInfoStruct{}, err
 	}
 
 	var qemuOsInfo qemuOSInfoStruct
 	if err := json.Unmarshal(response, &qemuOsInfo); err != nil {
+		log.Printf("Failed to unmarshal the JSON data for qemuGuestOsInfo - %s - %v", url, err)
 		return qemuOSInfoStruct{}, err
 	}
 
@@ -269,23 +301,27 @@ func qemuGuestIpInfo(qemuId int, parent string, port int, node string, apiToken 
 	url := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/qemu/%v/agent/network-get-interfaces", parent, port, node, qemuId)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		fmt.Println("Failed to convert the link")
+		log.Printf("Failed to create HTTP request for qemuGuestIpInfo - %s - %v", url, err)
+		return qemuGuestNetworkInfoStruct{}, err
 	}
 
 	req.Header.Add("Authorization", apiToken)
 	res, err := httpClient.Do(req)
 	if err != nil {
+		log.Printf("Failed to perform the HTTP request for qemuGuestIpInfo - %s - %v", url, err)
 		return qemuGuestNetworkInfoStruct{}, err
 	}
 	defer res.Body.Close()
 
 	response, err := io.ReadAll(res.Body)
 	if err != nil {
+		log.Printf("Failed to read the HTTP response for qemuGuestIpInfo - %s - %v", url, err)
 		return qemuGuestNetworkInfoStruct{}, err
 	}
 
 	var qemuIpInfo qemuGuestNetworkInfoStruct
 	if err := json.Unmarshal(response, &qemuIpInfo); err != nil {
+		log.Printf("Failed to unmarshal the JSON data for qemuGuestIpInfo - %s - %v", url, err)
 		return qemuGuestNetworkInfoStruct{}, err
 	}
 
