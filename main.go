@@ -11,20 +11,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func convertJSON() ([]PVEObject, error) {
+func convertJSON() ([]PVEConnectionObject, error) {
 	envVar, ok := os.LookupEnv("OBJECTS_JSON")
 	if !ok {
 		log.Println("No data found in OBJECTS_JSON variable")
 		return nil, fmt.Errorf("no data found in OBJECTS_JSON variable")
 	}
 
-	var objects []PVEObject
+	var objects []PVEConnectionObject
 	if err := json.Unmarshal([]byte(envVar), &objects); err != nil {
-		var singleObject PVEObject
+		var singleObject PVEConnectionObject
 		if err := json.Unmarshal([]byte(envVar), &singleObject); err != nil {
 			return objects, err
 		} else {
-			objects = []PVEObject{singleObject}
+			objects = []PVEConnectionObject{singleObject}
 		}
 	}
 	return objects, nil

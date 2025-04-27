@@ -19,7 +19,7 @@ func vmSummary(c *gin.Context) {
 	}
 
 	//var glbError []error
-	var allVms []VmSummaryStruct
+	var allVms []VmSummary
 	for _, obj := range jsonObjects {
 		v, _ := testHostPort(obj.Name, obj.Port)
 		if v {
@@ -80,13 +80,13 @@ func vmSummary(c *gin.Context) {
 					continue
 				}
 
-				var nodeVms VmSummaryRootStruct
+				var nodeVms VmSummaryObject
 				if err := json.Unmarshal(body, &nodeVms); err != nil {
 					log.Printf("Failed to unmarshal JSON for %v - %v", singleNode.Node, err)
 					continue
 				}
 
-				for i, _ := range nodeVms.Data {
+				for i := range nodeVms.Data {
 					nodeVms.Data[i].Parent = obj.Name
 					nodeVms.Data[i].Node = singleNode.Node
 					nodeVms.Data[i].MaxMemoryGb = nodeVms.Data[i].MaxMemoryGb / 1024 / 1024
@@ -148,12 +148,13 @@ func vmDetailedOverview(c *gin.Context) {
 				}
 
 				if vmObj.Vmid != 0 {
-					var qemuCombined QemuGuestCombined
+					var qemuCombined QemuGuestInfo
 					qemuStatus, err := qemuCurrentStatus(vmObj.Vmid, vmObj.Parent, jsonObject.Port, vmObj.Node, jsonObject.Token)
 					if err != nil {
 						log.Printf("Failed to obtain the status for the qemu %v - %v\n", vmObj.Vmid, err)
 					} else {
-						qemuCombined.Status = QemuStatusClient{
+						// This needs to be checked again - the value seems extremely high
+						qemuCombined.Status = QemuGuestStatus{
 							Name:           qemuStatus.Data.Name,
 							Status:         qemuStatus.Data.Status,
 							Agent:          qemuStatus.Data.Agent,
@@ -173,7 +174,7 @@ func vmDetailedOverview(c *gin.Context) {
 					if err != nil {
 						log.Printf("Failed to obtain the hostname for the qemu %v - %v\n", vmObj.Vmid, err)
 					} else {
-						qemuCombined.Hostname = qemuHostNameClient{
+						qemuCombined.Hostname = QemuHostNameInfo{
 							HostName: qemuHostName.Data.Result.Hostname,
 						}
 					}
@@ -182,7 +183,7 @@ func vmDetailedOverview(c *gin.Context) {
 					if err != nil {
 						log.Printf("Failed to obtain the OS info for %v - %v\n", vmObj.Vmid, err)
 					} else {
-						qemuCombined.OSInfo = QemuOsInfoClient{
+						qemuCombined.OSInfo = QemuOSInfo{
 							MajorVersion:     qemuOsInfo.Data.Result.Version,
 							Name:             qemuOsInfo.Data.Result.Name,
 							MajorBuildNumber: qemuOsInfo.Data.Result.KernelVersion,
@@ -206,123 +207,123 @@ func vmDetailedOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func qemuCurrentStatus(qemuId int, parent string, port int, node string, apiToken string) (qemuCurrentStatusStruct, error) {
+func qemuCurrentStatus(qemuId int, parent string, port int, node string, apiToken string) (QemuCurrentStatusObject, error) {
 	url := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/qemu/%v/status/current", parent, port, node, qemuId)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Printf("Failed to create HTTP request for qemuCurrentStatus - %v", err)
-		return qemuCurrentStatusStruct{}, err
+		return QemuCurrentStatusObject{}, err
 	}
 
 	req.Header.Add("Authorization", apiToken)
 	res, err := httpClient.Do(req)
 	if err != nil {
-		return qemuCurrentStatusStruct{}, err
+		return QemuCurrentStatusObject{}, err
 	}
 	defer res.Body.Close()
 
 	response, err := io.ReadAll(res.Body)
 	if err != nil {
-		return qemuCurrentStatusStruct{}, err
+		return QemuCurrentStatusObject{}, err
 	}
 
-	var qemuStatus qemuCurrentStatusStruct
+	var qemuStatus QemuCurrentStatusObject
 	if err := json.Unmarshal(response, &qemuStatus); err != nil {
-		return qemuCurrentStatusStruct{}, err
+		return QemuCurrentStatusObject{}, err
 	}
 
 	return qemuStatus, nil
 
 }
 
-func qemuGuestHostName(qemuId int, parent string, port int, node string, apiToken string) (qemuHostNameStruct, error) {
+func qemuGuestHostName(qemuId int, parent string, port int, node string, apiToken string) (QemuHostNameObject, error) {
 	url := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/qemu/%v/agent/get-host-name", parent, port, node, qemuId)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Printf("Failed to create HTTP request for qemuGuestHostName - %s - %v", url, err)
-		return qemuHostNameStruct{}, err
+		return QemuHostNameObject{}, err
 	}
 
 	req.Header.Add("Authorization", apiToken)
 	res, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to perform the HTTP request for qemuGuestHostName - %s - %v", url, err)
-		return qemuHostNameStruct{}, err
+		return QemuHostNameObject{}, err
 	}
 	defer res.Body.Close()
 
 	response, err := io.ReadAll(res.Body)
 	if err != nil {
 		log.Printf("Failed to read the HTTP response for qemuGuestHostName - %s - %v", url, err)
-		return qemuHostNameStruct{}, err
+		return QemuHostNameObject{}, err
 	}
 
-	var qemuHostName qemuHostNameStruct
+	var qemuHostName QemuHostNameObject
 	if err := json.Unmarshal(response, &qemuHostName); err != nil {
 		log.Printf("Failed to unmarshal the JSON data for qemuGuestHostName - %s - %v", url, err)
-		return qemuHostNameStruct{}, err
+		return QemuHostNameObject{}, err
 	}
 	return qemuHostName, nil
 }
 
-func qemuGuestOsInfo(qemuId int, parent string, port int, node string, apiToken string) (qemuOSInfoStruct, error) {
+func qemuGuestOsInfo(qemuId int, parent string, port int, node string, apiToken string) (QemuOSInfoObject, error) {
 	url := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/qemu/%v/agent/get-osinfo", parent, port, node, qemuId)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Printf("Failed to create HTTP request for qemuGuestOsInfo - %s - %v", url, err)
-		return qemuOSInfoStruct{}, err
+		return QemuOSInfoObject{}, err
 	}
 
 	req.Header.Add("Authorization", apiToken)
 	res, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to perform the HTTP request for qemuGuestOsInfo - %s - %v", url, err)
-		return qemuOSInfoStruct{}, err
+		return QemuOSInfoObject{}, err
 	}
 	defer res.Body.Close()
 
 	response, err := io.ReadAll(res.Body)
 	if err != nil {
 		log.Printf("Failed to read the HTTP respeons for qemuGuestOsInfo - %s - %v", url, err)
-		return qemuOSInfoStruct{}, err
+		return QemuOSInfoObject{}, err
 	}
 
-	var qemuOsInfo qemuOSInfoStruct
+	var qemuOsInfo QemuOSInfoObject
 	if err := json.Unmarshal(response, &qemuOsInfo); err != nil {
 		log.Printf("Failed to unmarshal the JSON data for qemuGuestOsInfo - %s - %v", url, err)
-		return qemuOSInfoStruct{}, err
+		return QemuOSInfoObject{}, err
 	}
 
 	return qemuOsInfo, nil
 
 }
 
-func qemuGuestIpInfo(qemuId int, parent string, port int, node string, apiToken string) (qemuGuestNetworkInfoStruct, error) {
+func qemuGuestIpInfo(qemuId int, parent string, port int, node string, apiToken string) (QemuGuestNetworkInfoObject, error) {
 	url := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/qemu/%v/agent/network-get-interfaces", parent, port, node, qemuId)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Printf("Failed to create HTTP request for qemuGuestIpInfo - %s - %v", url, err)
-		return qemuGuestNetworkInfoStruct{}, err
+		return QemuGuestNetworkInfoObject{}, err
 	}
 
 	req.Header.Add("Authorization", apiToken)
 	res, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to perform the HTTP request for qemuGuestIpInfo - %s - %v", url, err)
-		return qemuGuestNetworkInfoStruct{}, err
+		return QemuGuestNetworkInfoObject{}, err
 	}
 	defer res.Body.Close()
 
 	response, err := io.ReadAll(res.Body)
 	if err != nil {
 		log.Printf("Failed to read the HTTP response for qemuGuestIpInfo - %s - %v", url, err)
-		return qemuGuestNetworkInfoStruct{}, err
+		return QemuGuestNetworkInfoObject{}, err
 	}
 
-	var qemuIpInfo qemuGuestNetworkInfoStruct
+	var qemuIpInfo QemuGuestNetworkInfoObject
 	if err := json.Unmarshal(response, &qemuIpInfo); err != nil {
 		log.Printf("Failed to unmarshal the JSON data for qemuGuestIpInfo - %s - %v", url, err)
-		return qemuGuestNetworkInfoStruct{}, err
+		return QemuGuestNetworkInfoObject{}, err
 	}
 
 	return qemuIpInfo, nil

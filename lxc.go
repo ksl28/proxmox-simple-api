@@ -17,7 +17,7 @@ func lxcSummary(c *gin.Context) {
 		return
 	}
 
-	var allLxc []lxcReturn
+	var allLxc []LxcInfo
 	for _, obj := range jsonObjects {
 		portOpen, err := testHostPort(obj.Name, obj.Port)
 		if err != nil {
@@ -57,14 +57,14 @@ func lxcSummary(c *gin.Context) {
 					continue
 				}
 
-				var temporary lxcEntryWrapper
+				var temporary LxcEntryObject
 				if err = json.Unmarshal(resp, &temporary); err != nil {
 					log.Printf("Failed to unmarshal the response body for %s - %v", node.Node, err)
 					continue
 				}
 
 				for _, v := range temporary.Data {
-					var lxcReturn lxcReturn
+					var lxcReturn LxcInfo
 					lxcReturn.Parent = obj.Name
 					lxcReturn.Node = node.Node
 					lxcReturn.DiskreadMb = v.Diskread / (1024 * 1024)
