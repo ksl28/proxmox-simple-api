@@ -54,6 +54,11 @@ func main() {
 
 	}
 
+	apiPort, ok := os.LookupEnv("apiport")
+	if !ok {
+		apiPort = "8080"
+	}
+
 	router := gin.Default()
 	router.GET("/api/v1/infrastructure/nodes/summary", quickHostOverview)
 	router.GET("/api/v1/infrastructure/nodes/detailed/:name", detailedHostOverview)
@@ -62,5 +67,7 @@ func main() {
 	router.GET("/api/v1/virtualization/vm/summary", vmSummary)
 	router.GET("/api/v1/virtualization/vm/detailed/:parent/:id", vmDetailedOverview)
 	router.GET("/api/v1/virtualization/lxc/summary", lxcSummary)
-	router.Run()
+
+	apiListener := fmt.Sprintf("0.0.0.0:%v", apiPort)
+	router.Run(apiListener)
 }
