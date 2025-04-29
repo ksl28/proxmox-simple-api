@@ -45,11 +45,11 @@ func main() {
 	}
 
 	for _, obj := range allNodes {
-		v, _ := testHostPort(obj.Name, obj.Port)
+		v, _ := testHostPort(obj.Parent, obj.Port)
 		if !v {
-			log.Printf("%v is not listening on port %d", obj.Name, obj.Port)
+			log.Printf("%v is not listening on port %d", obj.Parent, obj.Port)
 		} else {
-			log.Printf("%v is listening on port %d", obj.Name, obj.Port)
+			log.Printf("%v is listening on port %d", obj.Parent, obj.Port)
 		}
 
 	}
@@ -61,9 +61,9 @@ func main() {
 
 	router := gin.Default()
 	router.GET("/api/v1/infrastructure/nodes/summary", quickHostOverview)
-	router.GET("/api/v1/infrastructure/nodes/detailed/:name", detailedHostOverview)
-	router.GET("/api/v1/infrastructure/nodes/detailed/:name/storage", getNodeStorageOverview)
-	router.GET("/api/v1/infrastructure/nodes/detailed/:name/disks", getNodeDiskOverview)
+	router.GET("/api/v1/infrastructure/nodes/detailed/:parent", detailedHostOverview)
+	router.GET("/api/v1/infrastructure/nodes/detailed/:parent/storage", getNodeStorageOverview)
+	router.GET("/api/v1/infrastructure/nodes/detailed/:parent/disks", getNodeDiskOverview)
 	router.GET("/api/v1/virtualization/vm/summary", vmSummary)
 	router.GET("/api/v1/virtualization/vm/detailed/:parent/:id", vmDetailedOverview)
 	router.GET("/api/v1/virtualization/lxc/summary", lxcSummary)

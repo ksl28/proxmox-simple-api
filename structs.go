@@ -3,10 +3,10 @@ package main
 import "time"
 
 type PVEConnectionObject struct {
-	Type  string `json:"Type"`
-	Name  string `json:"Name"`
-	Token string `json:"Token"`
-	Port  int    `json:"Port"`
+	Type   string `json:"Type"`
+	Parent string `json:"Parent"`
+	Token  string `json:"Token"`
+	Port   int    `json:"Port"`
 }
 
 type ClusterNodesObject struct {
@@ -191,18 +191,19 @@ type QemuGuestInfo struct {
 }
 
 type QemuGuestStatus struct {
-	Name           string  `json:"name"`
-	Status         string  `json:"status"`
-	Agent          int     `json:"agent"`
-	DiskreadMB     int     `json:"diskreadMB"`
-	DiskwriteMB    int     `json:"diskwriteMB"`
-	NetoutMB       int     `json:"netoutMB"`
-	NetinMB        int     `json:"netinMB"`
-	Cpus           int     `json:"cpus"`
-	CpuLoad        float64 `json:"cpu"`
-	MemoryMB       int     `json:"currentMemMB"`
-	MaxMemoryMB    int     `json:"maxMemMB"`
-	MachineVersion string  `json:"running-machine"`
+	Parent         string  `json:"parent,omitempty"`
+	Name           string  `json:"name,omitempty"`
+	Status         string  `json:"status,omitempty"`
+	Agent          int     `json:"agent,omitempty"`
+	DiskreadMB     int     `json:"diskreadMB,omitempty"`
+	DiskwriteMB    int     `json:"diskwriteMB,omitempty"`
+	NetoutMB       int     `json:"netoutMB,omitempty"`
+	NetinMB        int     `json:"netinMB,omitempty"`
+	Cpus           int     `json:"cpus,omitempty"`
+	CpuLoad        float64 `json:"cpu,omitempty"`
+	MemoryMB       int     `json:"currentMemMB,omitempty"`
+	MaxMemoryMB    int     `json:"maxMemMB,omitempty"`
+	MachineVersion string  `json:"running-machine,omitempty"`
 }
 
 type QemuCurrentStatusObject struct {
@@ -237,19 +238,19 @@ type QemuHostNameInfo struct {
 type QemuOSInfoObject struct {
 	Data struct {
 		Result struct {
-			Version       int     `json:"version-id,omitempty,string"`
-			Name          string  `json:"pretty-name,omitempty"`
-			KernelVersion float64 `json:"kernel-version,omitempty,string"`
-			KernelRelease int     `json:"kernel-release,omitempty,string"`
+			Version       string `json:"version-id,omitempty"`
+			Name          string `json:"pretty-name,omitempty"`
+			KernelVersion string `json:"kernel-version,omitempty"`
+			KernelRelease string `json:"kernel-release,omitempty"`
 		} `json:"result"`
 	} `json:"data"`
 }
 
 type QemuOSInfo struct {
-	MajorVersion     int     `json:"Version"`
-	Name             string  `json:"Name"`
-	MajorBuildNumber float64 `json:"KernelVersion"`
-	MinorBuildNumber int     `json:"KernelRelease"`
+	MajorVersion     string `json:"Version"`
+	Name             string `json:"Name"`
+	MajorBuildNumber string `json:"KernelVersion"`
+	MinorBuildNumber string `json:"KernelRelease"`
 }
 
 type QemuGuestNetworkInfoObject struct {

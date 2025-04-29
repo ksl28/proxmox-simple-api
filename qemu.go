@@ -12,7 +12,7 @@ import (
 )
 
 func vmSummary(c *gin.Context) {
-	jsonObjects, err := convertJSON()
+	selectedObjs, err := convertJSON()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to convert the JSON data - %v", err)})
 		return
@@ -20,16 +20,16 @@ func vmSummary(c *gin.Context) {
 
 	//var glbError []error
 	var allVms []VmSummary
-	for _, obj := range jsonObjects {
-		v, _ := testHostPort(obj.Name, obj.Port)
+	for _, obj := range selectedObjs {
+		v, _ := testHostPort(obj.Parent, obj.Port)
 		if v {
-			datacenterNodes, err := getDatacenterNodes(obj.Name, obj.Port, obj.Token)
+			datacenterNodes, err := getDatacenterNodes(obj.Parent, obj.Port, obj.Token)
 			if err != nil {
-				log.Printf("Failed to obtain the datacenter nodes for %s - %v", obj.Name, err)
+				log.Printf("Failed to obtain the datacenter nodes for %s - %v", obj.Parent, err)
 				continue
 			}
 
-			// customUrl := fmt.Sprintf("https://%v:%d/api2/json/nodes", obj.Name, obj.Port)
+			// customUrl := fmt.Sprintf("https://%v:%d/api2/json/nodes", obj.Parent, obj.Port)
 			// req, err := http.NewRequest("GET", customUrl, nil)
 			// if err != nil {
 			// 	log.Printf("Failed to create the HTTP request in vmSummary - %s - %v", customUrl, err)
@@ -60,7 +60,7 @@ func vmSummary(c *gin.Context) {
 					log.Printf("Skipping node %s (offline)", singleNode.Node)
 					continue
 				}
-				singleNodeUrl := fmt.Sprintf("https://%v:%d/api2/json/nodes/%v/qemu", obj.Name, obj.Port, singleNode.Node)
+				singleNodeUrl := fmt.Sprintf("https://%v:%d/api2/json/nodes/%v/qemu", obj.Parent, obj.Port, singleNode.Node)
 				req, err := http.NewRequest(http.MethodGet, singleNodeUrl, nil)
 				if err != nil {
 					log.Printf("Failed to create HTTP request for %v - %v", singleNode.Node, err)
@@ -87,7 +87,7 @@ func vmSummary(c *gin.Context) {
 				}
 
 				for i := range nodeVms.Data {
-					nodeVms.Data[i].Parent = obj.Name
+					nodeVms.Data[i].Parent = obj.Parent
 					nodeVms.Data[i].Node = singleNode.Node
 					nodeVms.Data[i].MaxMemoryGb = nodeVms.Data[i].MaxMemoryGb / 1024 / 1024
 					nodeVms.Data[i].GuestMemoryGb = nodeVms.Data[i].GuestMemoryGb / 1024 / 1024
@@ -105,27 +105,27 @@ func vmDetailedOverview(c *gin.Context) {
 	var result QemuGuestWrapper
 
 	qemuId := c.Param("id")
-	qemuParent := c.Param("parent")
-	if qemuId == "" || qemuParent == "" {
+	parentName := c.Param("parent")
+	if qemuId == "" || parentName == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "VM ID not found"})
 		return
 	}
-	jsonObjects, err := convertJSON()
+	selectedObjs, err := convertJSON()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to convert the JSON data - %v", err)})
 		return
 	}
-	for _, jsonObject := range jsonObjects {
-		if jsonObject.Name == qemuParent {
-			v, err := testHostPort(jsonObject.Name, jsonObject.Port)
+	for _, selectedObj := range selectedObjs {
+		if selectedObj.Parent == parentName {
+			v, err := testHostPort(selectedObj.Parent, selectedObj.Port)
 			if err != nil {
-				log.Printf("Failed to check if %s is connectable - %v", jsonObject.Name, err)
+				log.Printf("Failed to check if %s is connectable - %v", selectedObj.Parent, err)
 				continue
 			}
 			if v {
-				datacenterNodes, err := getDatacenterNodes(jsonObject.Name, jsonObject.Port, jsonObject.Token)
+				datacenterNodes, err := getDatacenterNodes(selectedObj.Parent, selectedObj.Port, selectedObj.Token)
 				if err != nil {
-					log.Printf("Failed to get cluster nodes for %s - %v", jsonObject.Name, err)
+					log.Printf("Failed to get cluster nodes for %s - %v", selectedObj.Parent, err)
 					return
 				}
 				var vmObj GuestInfo
@@ -134,9 +134,9 @@ func vmDetailedOverview(c *gin.Context) {
 						log.Printf("Skipping node %s (offline)", datacenterNode.Node)
 						continue
 					}
-					guestsResult, err := nodeGuestsOverview("qemu", jsonObject.Name, jsonObject.Port, datacenterNode.Node, jsonObject.Token)
+					guestsResult, err := nodeGuestsOverview("qemu", selectedObj.Parent, selectedObj.Port, datacenterNode.Node, selectedObj.Token)
 					if err != nil {
-						log.Printf("Failed to get the guests for %v - %v", jsonObject.Name, err)
+						log.Printf("Failed to get the guests for %v - %v", selectedObj.Parent, err)
 						continue
 					} else {
 						for _, guest := range guestsResult.Data {
@@ -149,12 +149,13 @@ func vmDetailedOverview(c *gin.Context) {
 
 				if vmObj.Vmid != 0 {
 					var qemuCombined QemuGuestInfo
-					qemuStatus, err := qemuCurrentStatus(vmObj.Vmid, vmObj.Parent, jsonObject.Port, vmObj.Node, jsonObject.Token)
+					qemuStatus, err := qemuCurrentStatus(vmObj.Vmid, vmObj.Parent, selectedObj.Port, vmObj.Node, selectedObj.Token)
 					if err != nil {
 						log.Printf("Failed to obtain the status for the qemu %v - %v\n", vmObj.Vmid, err)
 					} else {
 						// This needs to be checked again - the value seems extremely high
 						qemuCombined.Status = QemuGuestStatus{
+							Parent:         parentName,
 							Name:           qemuStatus.Data.Name,
 							Status:         qemuStatus.Data.Status,
 							Agent:          qemuStatus.Data.Agent,
@@ -170,7 +171,7 @@ func vmDetailedOverview(c *gin.Context) {
 						}
 					}
 
-					qemuHostName, err := qemuGuestHostName(vmObj.Vmid, vmObj.Parent, jsonObject.Port, vmObj.Node, jsonObject.Token)
+					qemuHostName, err := qemuGuestHostName(vmObj.Vmid, vmObj.Parent, selectedObj.Port, vmObj.Node, selectedObj.Token)
 					if err != nil {
 						log.Printf("Failed to obtain the hostname for the qemu %v - %v\n", vmObj.Vmid, err)
 					} else {
@@ -179,7 +180,7 @@ func vmDetailedOverview(c *gin.Context) {
 						}
 					}
 
-					qemuOsInfo, err := qemuGuestOsInfo(vmObj.Vmid, vmObj.Parent, jsonObject.Port, vmObj.Node, jsonObject.Token)
+					qemuOsInfo, err := qemuGuestOsInfo(vmObj.Vmid, vmObj.Parent, selectedObj.Port, vmObj.Node, selectedObj.Token)
 					if err != nil {
 						log.Printf("Failed to obtain the OS info for %v - %v\n", vmObj.Vmid, err)
 					} else {
@@ -191,7 +192,7 @@ func vmDetailedOverview(c *gin.Context) {
 						}
 					}
 
-					qemuIpInfo, err := qemuGuestIpInfo(vmObj.Vmid, vmObj.Parent, jsonObject.Port, vmObj.Node, jsonObject.Token)
+					qemuIpInfo, err := qemuGuestIpInfo(vmObj.Vmid, vmObj.Parent, selectedObj.Port, vmObj.Node, selectedObj.Token)
 					if err != nil {
 						log.Printf("Failed to obtain the IP info for %v - %v\n", vmObj.Vmid, err)
 					} else {

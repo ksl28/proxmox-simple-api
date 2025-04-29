@@ -34,22 +34,22 @@ func quickHostOverview(c *gin.Context) {
 	}
 
 	for _, obj := range jsonObjects {
-		portOpen, err := testHostPort(obj.Name, obj.Port)
+		portOpen, err := testHostPort(obj.Parent, obj.Port)
 		if err != nil {
-			log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Name, err)
+			log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Parent, err)
 			continue
 		}
 		if portOpen {
-			datacenterNodes, err := getDatacenterNodes(obj.Name, obj.Port, obj.Token)
+			datacenterNodes, err := getDatacenterNodes(obj.Parent, obj.Port, obj.Token)
 			if err != nil {
-				log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Name, err)
+				log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Parent, err)
 				continue
 			}
 			for _, xv := range datacenterNodes.Data {
 				var temporary nodeSummaryWrapper
 				// Needs review - omitempty is used, so might not need to have this
 				if xv.Status != "online" {
-					temporary.Parent = obj.Name
+					temporary.Parent = obj.Parent
 					temporary.Node = xv.Node
 					temporary.Status = xv.Status
 					temporary.MaxCPU = 0
@@ -62,7 +62,7 @@ func quickHostOverview(c *gin.Context) {
 					results = append(results, temporary)
 					continue
 				} else {
-					temporary.Parent = obj.Name
+					temporary.Parent = obj.Parent
 					temporary.Node = xv.Node
 					temporary.Status = xv.Status
 					temporary.MaxCPU = xv.MaxCPU
@@ -77,7 +77,7 @@ func quickHostOverview(c *gin.Context) {
 
 			}
 		} else {
-			log.Printf("The server %s is not listening on %d", obj.Name, obj.Port)
+			log.Printf("The server %s is not listening on %d", obj.Parent, obj.Port)
 			continue
 		}
 	}
@@ -159,7 +159,7 @@ func nodeGuestsOverview(guestType string, parent string, port int, node string, 
 }
 
 func detailedHostOverview(c *gin.Context) {
-	hostName := c.Param("name")
+	hostName := c.Param("parent")
 	rawObj, err := convertJSON()
 	if err != nil {
 		log.Printf("Failed to convert the JSON values - %v", err)
@@ -169,7 +169,7 @@ func detailedHostOverview(c *gin.Context) {
 	var selectedObj PVEConnectionObject
 	var found bool
 	for _, obj := range rawObj {
-		if obj.Name == hostName {
+		if obj.Parent == hostName {
 			selectedObj = obj
 			found = true
 			break
@@ -177,7 +177,7 @@ func detailedHostOverview(c *gin.Context) {
 	}
 
 	if found {
-		clusterData, err := getDatacenterNodes(selectedObj.Name, selectedObj.Port, selectedObj.Token)
+		clusterData, err := getDatacenterNodes(selectedObj.Parent, selectedObj.Port, selectedObj.Token)
 		if err != nil {
 			log.Printf("Failed to get cluster nodes - %v", err)
 			return
@@ -195,26 +195,26 @@ func detailedHostOverview(c *gin.Context) {
 
 			var detailedHost NodeDetailsObject
 
-			nodeStatus, err := getNodeStatus(selectedObj.Name, selectedObj.Port, selectedObj.Token, obj.Node)
+			nodeStatus, err := getNodeStatus(selectedObj.Parent, selectedObj.Port, selectedObj.Token, obj.Node)
 			if err != nil {
 				log.Printf("Failed to get the node status for %s - %v", obj.Node, err)
 				continue
 			}
 
-			NodeDnsObject, err := getNodeDnsObject(selectedObj.Name, selectedObj.Port, selectedObj.Token, obj.Node)
+			NodeDnsObject, err := getNodeDnsObject(selectedObj.Parent, selectedObj.Port, selectedObj.Token, obj.Node)
 			if err != nil {
 				log.Printf("Failed to get the node DNS for %s - %v", obj.Node, err)
 				continue
 			}
 
-			NodeTimeObject, err := getNodeTimeObject(selectedObj.Name, selectedObj.Port, selectedObj.Token, obj.Node)
+			NodeTimeObject, err := getNodeTimeObject(selectedObj.Parent, selectedObj.Port, selectedObj.Token, obj.Node)
 			if err != nil {
 				log.Printf("Failed to get the time configuration for %s - %v", obj.Node, err)
 				continue
 			}
 
 			detailedHost.Data.NodeInfo.Node = obj.Node
-			detailedHost.Data.NodeInfo.Parent = selectedObj.Name
+			detailedHost.Data.NodeInfo.Parent = selectedObj.Parent
 			detailedHost.Data.Dns.Dns1 = NodeDnsObject.Data.Dns1
 			detailedHost.Data.Dns.Dns2 = NodeDnsObject.Data.Dns2
 			detailedHost.Data.Dns.Dns3 = NodeDnsObject.Data.Dns3
@@ -333,7 +333,7 @@ func getNodeTimeObject(parent string, port int, apiToken string, node string) (N
 }
 
 func getNodeStorageOverview(c *gin.Context) {
-	hostName := c.Param("name")
+	parentName := c.Param("parent")
 	clusterObjects, err := convertJSON()
 	if err != nil {
 		log.Printf("Failed to convert the JSON objects - %v", err)
@@ -343,7 +343,7 @@ func getNodeStorageOverview(c *gin.Context) {
 	var selectedObj PVEConnectionObject
 	var found bool
 	for _, clusterNode := range clusterObjects {
-		if clusterNode.Name == hostName {
+		if clusterNode.Parent == parentName {
 			selectedObj = clusterNode
 			found = true
 			break
@@ -351,22 +351,22 @@ func getNodeStorageOverview(c *gin.Context) {
 	}
 
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("The parent entered (%s) is not present in the environment variable - please adjust.", hostName)})
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("The parent entered (%s) is not present in the environment variable - please adjust.", parentName)})
 		return
 	}
 	var storageList NodeStorageObject
 
-	portOpen, err := testHostPort(selectedObj.Name, selectedObj.Port)
+	portOpen, err := testHostPort(selectedObj.Parent, selectedObj.Port)
 	if err != nil {
-		log.Printf("Failed to check if the port was open on %s:%d - %v", selectedObj.Name, selectedObj.Port, err)
+		log.Printf("Failed to check if the port was open on %s:%d - %v", selectedObj.Parent, selectedObj.Port, err)
 		return
 	}
 
 	if portOpen {
 
-		clusterNodes, err := getDatacenterNodes(selectedObj.Name, selectedObj.Port, selectedObj.Token)
+		clusterNodes, err := getDatacenterNodes(selectedObj.Parent, selectedObj.Port, selectedObj.Token)
 		if err != nil {
-			log.Printf("Failed to obtain the cluster nodes for %s - %v", selectedObj.Name, err)
+			log.Printf("Failed to obtain the cluster nodes for %s - %v", selectedObj.Parent, err)
 			return
 		}
 
@@ -377,7 +377,7 @@ func getNodeStorageOverview(c *gin.Context) {
 			}
 
 			var nodeStorage hostStorageList
-			nodeStorage, err := getNodeStorage(selectedObj.Name, selectedObj.Port, selectedObj.Token, clusterNode.Node)
+			nodeStorage, err := getNodeStorage(selectedObj.Parent, selectedObj.Port, selectedObj.Token, clusterNode.Node)
 			if err != nil {
 				log.Printf("Failed to obtain the storage for %s - %v", clusterNode.Node, err)
 				continue
@@ -385,7 +385,7 @@ func getNodeStorageOverview(c *gin.Context) {
 
 			for _, v := range nodeStorage.Data {
 				var temporary NodeStorageInfo
-				temporary.Parent = selectedObj.Name
+				temporary.Parent = selectedObj.Parent
 				temporary.Node = clusterNode.Node
 				temporary.Active = v.Active
 				temporary.Content = v.Content
@@ -472,7 +472,7 @@ func getNodeDisks(parent string, port int, apiToken string, node string) (hostDi
 }
 
 func getNodeDiskOverview(c *gin.Context) {
-	hostName := c.Param("name")
+	parentName := c.Param("parent")
 
 	clusterObjects, err := convertJSON()
 	if err != nil {
@@ -483,7 +483,7 @@ func getNodeDiskOverview(c *gin.Context) {
 	var selectedObj PVEConnectionObject
 	var found bool
 	for _, clusterNode := range clusterObjects {
-		if clusterNode.Name == hostName {
+		if clusterNode.Parent == parentName {
 			selectedObj = clusterNode
 			found = true
 			break
@@ -491,23 +491,23 @@ func getNodeDiskOverview(c *gin.Context) {
 	}
 
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("The parent entered (%s) is not present in the environment variable - please adjust.", hostName)})
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("The parent entered (%s) is not present in the environment variable - please adjust.", parentName)})
 		return
 	}
 
 	var diskList NodeDiskObject
 
-	portOpen, err := testHostPort(selectedObj.Name, selectedObj.Port)
+	portOpen, err := testHostPort(selectedObj.Parent, selectedObj.Port)
 	if err != nil {
-		log.Printf("Failed to check if the port was open on %s:%d - %v", selectedObj.Name, selectedObj.Port, err)
+		log.Printf("Failed to check if the port was open on %s:%d - %v", selectedObj.Parent, selectedObj.Port, err)
 		return
 	}
 
 	if portOpen {
 
-		clusterNodes, err := getDatacenterNodes(selectedObj.Name, selectedObj.Port, selectedObj.Token)
+		clusterNodes, err := getDatacenterNodes(selectedObj.Parent, selectedObj.Port, selectedObj.Token)
 		if err != nil {
-			log.Printf("Failed to obtain the cluster nodes for %s - %v", selectedObj.Name, err)
+			log.Printf("Failed to obtain the cluster nodes for %s - %v", selectedObj.Parent, err)
 			return
 		}
 
@@ -517,7 +517,7 @@ func getNodeDiskOverview(c *gin.Context) {
 				continue
 			}
 			var nodeStorage hostDiskList
-			nodeStorage, err := getNodeDisks(selectedObj.Name, selectedObj.Port, selectedObj.Token, clusterNode.Node)
+			nodeStorage, err := getNodeDisks(selectedObj.Parent, selectedObj.Port, selectedObj.Token, clusterNode.Node)
 			if err != nil {
 				log.Printf("Failed to obtain the disks for %s - %v", clusterNode.Node, err)
 				continue
@@ -544,7 +544,7 @@ func getNodeDiskOverview(c *gin.Context) {
 					temporary.Rpm = i
 				}
 
-				temporary.Parent = selectedObj.Name
+				temporary.Parent = selectedObj.Parent
 				temporary.Node = clusterNode.Node
 				temporary.Gpt = v.Gpt
 				temporary.Vendor = v.Vendor

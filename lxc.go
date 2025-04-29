@@ -19,15 +19,15 @@ func lxcSummary(c *gin.Context) {
 
 	var allLxc []LxcInfo
 	for _, obj := range jsonObjects {
-		portOpen, err := testHostPort(obj.Name, obj.Port)
+		portOpen, err := testHostPort(obj.Parent, obj.Port)
 		if err != nil {
-			log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Name, err)
+			log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Parent, err)
 			return
 		}
 		if portOpen {
-			datacenterNodes, err := getDatacenterNodes(obj.Name, obj.Port, obj.Token)
+			datacenterNodes, err := getDatacenterNodes(obj.Parent, obj.Port, obj.Token)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to obtain the datacenter nodes for %s - %v", obj.Name, err)})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to obtain the datacenter nodes for %s - %v", obj.Parent, err)})
 				return
 			}
 			for _, node := range datacenterNodes.Data {
@@ -35,7 +35,7 @@ func lxcSummary(c *gin.Context) {
 					log.Printf("Skipping node %s - its offline", node.Node)
 					continue
 				}
-				lxcNodeUrl := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/lxc", obj.Name, obj.Port, node.Node)
+				lxcNodeUrl := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/lxc", obj.Parent, obj.Port, node.Node)
 				req, err := http.NewRequest(http.MethodGet, lxcNodeUrl, nil)
 				if err != nil {
 					log.Printf("Failed to create the LXC per node url for %s - %v", node.Node, err)
@@ -65,7 +65,7 @@ func lxcSummary(c *gin.Context) {
 
 				for _, v := range temporary.Data {
 					var lxcReturn LxcInfo
-					lxcReturn.Parent = obj.Name
+					lxcReturn.Parent = obj.Parent
 					lxcReturn.Node = node.Node
 					lxcReturn.DiskreadMb = v.Diskread / (1024 * 1024)
 					lxcReturn.DiskwriteMb = v.Diskwrite / (1024 * 1024)
