@@ -512,6 +512,10 @@ func getNodeDiskOverview(c *gin.Context) {
 		}
 
 		for _, clusterNode := range clusterNodes.Data {
+			if clusterNode.Status != "online" {
+				log.Printf("Skipping node %s - its offline", clusterNode.Node)
+				continue
+			}
 			var nodeStorage hostDiskList
 			nodeStorage, err := getNodeDisks(selectedObj.Name, selectedObj.Port, selectedObj.Token, clusterNode.Node)
 			if err != nil {
