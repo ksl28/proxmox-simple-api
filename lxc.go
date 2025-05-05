@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 
@@ -31,35 +29,25 @@ func lxcSummary(c *gin.Context) {
 				return
 			}
 			for _, node := range datacenterNodes.Data {
-				if node.Status != "online" {
+				if node.NodeStatus != "online" {
+					var lxcReturn LxcInfo
+					lxcReturn.Parent = obj.Parent
+					lxcReturn.Node = node.Node
+					lxcReturn.NodeStatus = node.NodeStatus
+					allLxc = append(allLxc, lxcReturn)
 					log.Printf("Skipping node %s - its offline", node.Node)
 					continue
 				}
-				lxcNodeUrl := fmt.Sprintf("https://%v:%v/api2/json/nodes/%v/lxc", obj.Parent, obj.Port, node.Node)
+				lxcNodeUrl := fmt.Sprintf("https://%s:%d/api2/json/nodes/%v/lxc", obj.Parent, obj.Port, node.Node)
 				req, err := http.NewRequest(http.MethodGet, lxcNodeUrl, nil)
 				if err != nil {
 					log.Printf("Failed to create the LXC per node url for %s - %v", node.Node, err)
 					continue
 				}
-				req.Header.Add("Authorization", obj.Token)
-				res, err := httpClient.Do(req)
-				if err != nil {
-					log.Printf("Failed to perform the HTTP call for %s - %v", node.Node, err)
-					continue
-				}
-				// Its inside the loop - dont use it - https://stackoverflow.com/questions/45617758/proper-way-to-release-resources-with-defer-in-a-loop
-				//defer res.Body.Close()
-
-				resp, err := io.ReadAll(res.Body)
-				res.Body.Close()
-				if err != nil {
-					log.Printf("Failed to read the response body for %s - %v", node.Node, err)
-					continue
-				}
 
 				var temporary LxcEntryObject
-				if err = json.Unmarshal(resp, &temporary); err != nil {
-					log.Printf("Failed to unmarshal the response body for %s - %v", node.Node, err)
+				if err := sendRequest(req, &temporary, obj.Token); err != nil {
+					log.Printf("Failed to process the request for %s - error %v", lxcNodeUrl, err)
 					continue
 				}
 
@@ -67,6 +55,7 @@ func lxcSummary(c *gin.Context) {
 					var lxcReturn LxcInfo
 					lxcReturn.Parent = obj.Parent
 					lxcReturn.Node = node.Node
+					lxcReturn.NodeStatus = node.NodeStatus
 					lxcReturn.DiskreadMb = v.Diskread / (1024 * 1024)
 					lxcReturn.DiskwriteMb = v.Diskwrite / (1024 * 1024)
 					lxcReturn.MaxMemoryMb = v.MaxMemory / (1024 * 1024)

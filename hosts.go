@@ -1,21 +1,20 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"math"
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 func testHostPort(host string, port int) (bool, error) {
-	hostPort := fmt.Sprintf("%v:%v", host, port)
+	hostPort := fmt.Sprintf("%s:%d", host, port)
 	_, err := net.DialTimeout("tcp", hostPort, time.Duration(600)*time.Millisecond)
 	if err != nil {
 		return false, err
@@ -47,11 +46,11 @@ func quickHostOverview(c *gin.Context) {
 			}
 			for _, xv := range datacenterNodes.Data {
 				var temporary nodeSummaryWrapper
-				// Needs review - omitempty is used, so might not need to have this
-				if xv.Status != "online" {
+				//If the first object in the slice is empty / offline, then the struct will be limited to only show the fields that have values.
+				if xv.NodeStatus != "online" {
 					temporary.Parent = obj.Parent
 					temporary.Node = xv.Node
-					temporary.Status = xv.Status
+					temporary.NodeStatus = xv.NodeStatus
 					temporary.MaxCPU = 0
 					temporary.MaxMemGb = 0
 					temporary.MemGb = 0
@@ -64,7 +63,7 @@ func quickHostOverview(c *gin.Context) {
 				} else {
 					temporary.Parent = obj.Parent
 					temporary.Node = xv.Node
-					temporary.Status = xv.Status
+					temporary.NodeStatus = xv.NodeStatus
 					temporary.MaxCPU = xv.MaxCPU
 					temporary.MaxMemGb = int(xv.MaxMem) / (1024 * 1024 * 1024)
 					temporary.MemGb = int(xv.Mem) / (1024 * 1024 * 1024)
@@ -85,68 +84,40 @@ func quickHostOverview(c *gin.Context) {
 }
 
 func getDatacenterNodes(parent string, port int, apiToken string) (PVENodesObject, error) {
-	requestUrl := fmt.Sprintf("https://%s:%d/api2/json/nodes", parent, port)
-	req, err := http.NewRequest(http.MethodGet, requestUrl, nil)
+	customUrl := fmt.Sprintf("https://%s:%d/api2/json/nodes", parent, port)
+	req, err := http.NewRequest(http.MethodGet, customUrl, nil)
 	if err != nil {
-		log.Printf("Error creating the HTTP request for %s - %v", requestUrl, err)
+		log.Printf("Error creating the HTTP request for %s - %v", customUrl, err)
 		return PVENodesObject{}, err
 	}
-	req.Header.Add("Authorization", apiToken)
-	res, err := httpClient.Do(req)
-	if err != nil {
-		log.Printf("Failed to perform the HTTP request for %s - %v", parent, err)
-		return PVENodesObject{}, err
-	}
-	defer res.Body.Close()
-
-	raw, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Printf("Failed to read the http body for %s - %v", parent, err)
-		return PVENodesObject{}, err
-	}
-
 	var datacenterNodes PVENodesObject
-	err = json.Unmarshal(raw, &datacenterNodes)
-	if err != nil {
-		log.Printf("Failed to unmarshal the http body for %s - %v", parent, err)
+	if err := sendRequest(req, &datacenterNodes, apiToken); err != nil {
+		log.Printf("Failed to process the request for %s - error %v", customUrl, err)
 		return PVENodesObject{}, err
 	}
+
 	return datacenterNodes, nil
 }
 
 func nodeGuestsOverview(guestType string, parent string, port int, node string, apiToken string) (NodeGuestOverview, error) {
 
-	// Check this later - should be used in the vmSummary instead?
-
-	var requestUrl string
+	var customUrl string
 	if guestType == "lxc" {
-		requestUrl = fmt.Sprintf("https://%s:%d/api2/json/nodes/%s/lxc", parent, port, node)
+		customUrl = fmt.Sprintf("https://%s:%d/api2/json/nodes/%s/lxc", parent, port, node)
 	} else {
-		requestUrl = fmt.Sprintf("https://%s:%d/api2/json/nodes/%s/qemu", parent, port, node)
+		customUrl = fmt.Sprintf("https://%s:%d/api2/json/nodes/%s/qemu", parent, port, node)
 	}
 
-	req, err := http.NewRequest(http.MethodGet, requestUrl, nil)
+	req, err := http.NewRequest(http.MethodGet, customUrl, nil)
 	if err != nil {
 		log.Printf("Failed to create the HTTP request for %s - %v", parent, err)
 		return NodeGuestOverview{}, err
 	}
-	req.Header.Add("Authorization", apiToken)
-	res, err := httpClient.Do(req)
-	if err != nil {
-		log.Printf("Failed to perform the HTTP request for %s - %v", parent, err)
-		return NodeGuestOverview{}, err
-	}
-	defer res.Body.Close()
-
-	raw, err := io.ReadAll(res.Body)
-	if err != nil {
-		fmt.Printf("Failed - %v", err)
-	}
 
 	var qemuList NodeGuestOverview
-	err = json.Unmarshal(raw, &qemuList)
-	if err != nil {
-		fmt.Printf("JSON failed - %v", err)
+	if err := sendRequest(req, &qemuList, apiToken); err != nil {
+		log.Printf("Failed to process the request for %s - error %v", customUrl, err)
+		return NodeGuestOverview{}, err
 	}
 
 	for i := range qemuList.Data {
@@ -187,13 +158,17 @@ func detailedHostOverview(c *gin.Context) {
 
 		var results []NodeDetailsObject
 		for _, obj := range clusterNodes {
+			var detailedHost NodeDetailsObject
 
-			if obj.Status != "online" {
+			if obj.NodeStatus != "online" {
+				detailedHost.Data.NodeInfo.Node = obj.Node
+				detailedHost.Data.NodeInfo.Parent = selectedObj.Parent
+				detailedHost.Data.NodeInfo.NodeStatus = obj.NodeStatus
+				results = append(results, detailedHost)
 				log.Printf("Skipping node %s - its offline", obj.Node)
+
 				continue
 			}
-
-			var detailedHost NodeDetailsObject
 
 			nodeStatus, err := getNodeStatus(selectedObj.Parent, selectedObj.Port, selectedObj.Token, obj.Node)
 			if err != nil {
@@ -215,6 +190,7 @@ func detailedHostOverview(c *gin.Context) {
 
 			detailedHost.Data.NodeInfo.Node = obj.Node
 			detailedHost.Data.NodeInfo.Parent = selectedObj.Parent
+			detailedHost.Data.NodeInfo.NodeStatus = obj.NodeStatus
 			detailedHost.Data.Dns.Dns1 = NodeDnsObject.Data.Dns1
 			detailedHost.Data.Dns.Dns2 = NodeDnsObject.Data.Dns2
 			detailedHost.Data.Dns.Dns3 = NodeDnsObject.Data.Dns3
@@ -248,24 +224,10 @@ func getNodeStatus(parent string, port int, apiToken string, node string) (NodeS
 		log.Printf("Failed to create the HTTP request for getNodeStatus - %v", err)
 		return NodeStatusObject{}, err
 	}
-	req.Header.Add("Authorization", apiToken)
-
-	res, err := httpClient.Do(req)
-	if err != nil {
-		log.Printf("Failed to perform the HTTP request for getNodeStatus - %s - %v", customUrl, err)
-		return NodeStatusObject{}, err
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Printf("Failed to read the body for getNodeStatus - %s - %v", customUrl, err)
-		return NodeStatusObject{}, err
-	}
 
 	var jsonObject NodeStatusObject
-	if err := json.Unmarshal(body, &jsonObject); err != nil {
-		log.Printf("Failed to convert the body for getNodeStatus - %s - %v", customUrl, err)
+	if err := sendRequest(req, &jsonObject, apiToken); err != nil {
+		log.Printf("Failed to process the request for %s - error %v", customUrl, err)
 		return NodeStatusObject{}, err
 	}
 
@@ -279,23 +241,10 @@ func getNodeDnsObject(parent string, port int, apiToken string, node string) (No
 		log.Printf("Failed to create the HTTP request for the getNodeDnsObject - %v", err)
 		return NodeDnsObject{}, err
 	}
-	req.Header.Add("Authorization", apiToken)
-	res, err := httpClient.Do(req)
-	if err != nil {
-		log.Printf("Failed to perform the HTTP request for getNodeDnsObject - %s - %v", customUrl, err)
-		return NodeDnsObject{}, err
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Printf("Failed to read the body for getNodeDnsObject - %s - %v", customUrl, err)
-		return NodeDnsObject{}, err
-	}
 
 	var jsonObject NodeDnsObject
-	if err := json.Unmarshal(body, &jsonObject); err != nil {
-		log.Printf("Failed to convert the body for getNodeDnsObject - %s - %v", customUrl, err)
+	if err := sendRequest(req, &jsonObject, apiToken); err != nil {
+		log.Printf("Failed to process the request for %s - error %v", customUrl, err)
 		return NodeDnsObject{}, err
 	}
 
@@ -309,27 +258,14 @@ func getNodeTimeObject(parent string, port int, apiToken string, node string) (N
 		log.Printf("Failed to create the HTTP request for the getNodeTimeObject - %v", err)
 		return NodeTimeObject{}, err
 	}
-	req.Header.Add("Authorization", apiToken)
-	res, err := httpClient.Do(req)
-	if err != nil {
-		log.Printf("Failed to perform the HTTP request for getNodeTimeObject - %s - %v", customUrl, err)
-		return NodeTimeObject{}, err
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Printf("Failed to read the body for getNodeTimeObject - %s - %v", customUrl, err)
-		return NodeTimeObject{}, err
-	}
-
 	var jsonObject NodeTimeObject
-	if err := json.Unmarshal(body, &jsonObject); err != nil {
-		log.Printf("Failed to convert the body for getNodeTimeObject - %s - %v", customUrl, err)
+	if err := sendRequest(req, &jsonObject, apiToken); err != nil {
+		log.Printf("Failed to process the request for %s - error %v", customUrl, err)
 		return NodeTimeObject{}, err
 	}
 
 	return jsonObject, nil
+
 }
 
 func getNodeStorageOverview(c *gin.Context) {
@@ -371,7 +307,12 @@ func getNodeStorageOverview(c *gin.Context) {
 		}
 
 		for _, clusterNode := range clusterNodes.Data {
-			if clusterNode.Status != "online" {
+			if clusterNode.NodeStatus != "online" {
+				var temporary NodeStorageInfo
+				temporary.Parent = selectedObj.Parent
+				temporary.Node = clusterNode.Node
+				temporary.NodeStatus = clusterNode.NodeStatus
+				storageList.Data = append(storageList.Data, temporary)
 				log.Printf("Skipping node %s - its offline", clusterNode.Node)
 				continue
 			}
@@ -387,6 +328,7 @@ func getNodeStorageOverview(c *gin.Context) {
 				var temporary NodeStorageInfo
 				temporary.Parent = selectedObj.Parent
 				temporary.Node = clusterNode.Node
+				temporary.NodeStatus = clusterNode.NodeStatus
 				temporary.Active = v.Active
 				temporary.Content = v.Content
 				temporary.Enabled = v.Enabled
@@ -409,29 +351,14 @@ func getNodeStorage(parent string, port int, apiToken string, node string) (host
 	customUrl := fmt.Sprintf("https://%s:%d/api2/json/nodes/%s/storage", parent, port, node)
 
 	var nodeStorageObj hostStorageList
-
 	req, err := http.NewRequest(http.MethodGet, customUrl, nil)
 	if err != nil {
 		log.Printf("Failed to create HTTP request for getNodeStorage on %s - %v", customUrl, err)
 		return hostStorageList{}, err
 	}
-	req.Header.Add("Authorization", apiToken)
 
-	res, err := httpClient.Do(req)
-	if err != nil {
-		log.Printf("Failed to perform HTTP request for getNodeStorage on %s - %v", customUrl, err)
-		return hostStorageList{}, err
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Printf("Failed to read response body for getNodeStorage on %s - %v", customUrl, err)
-		return hostStorageList{}, err
-	}
-
-	if err := json.Unmarshal(body, &nodeStorageObj); err != nil {
-		log.Printf("Failed to unmarshal JSON response for getNodeStorage on %s - %v", customUrl, err)
+	if err := sendRequest(req, &nodeStorageObj, apiToken); err != nil {
+		log.Printf("Failed to process the request for %s - error %v", customUrl, err)
 		return hostStorageList{}, err
 	}
 
@@ -448,23 +375,9 @@ func getNodeDisks(parent string, port int, apiToken string, node string) (hostDi
 		log.Printf("Failed to create HTTP request for getNodeDisks on %s - %v", customUrl, err)
 		return hostDiskList{}, err
 	}
-	req.Header.Add("Authorization", apiToken)
 
-	res, err := httpClient.Do(req)
-	if err != nil {
-		log.Printf("Failed to perform HTTP request for getNodeDisks on %s - %v", customUrl, err)
-		return hostDiskList{}, err
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Printf("Failed to read response body for getNodeDisks on %s - %v", customUrl, err)
-		return hostDiskList{}, err
-	}
-
-	if err := json.Unmarshal(body, &nodeStorageObj); err != nil {
-		log.Printf("Failed to unmarshal JSON response for getNodeDisks on %s - %v", customUrl, err)
+	if err := sendRequest(req, &nodeStorageObj, apiToken); err != nil {
+		log.Printf("Failed to process the request for %s - error %v", customUrl, err)
 		return hostDiskList{}, err
 	}
 
@@ -511,51 +424,80 @@ func getNodeDiskOverview(c *gin.Context) {
 			return
 		}
 
+		ch := make(chan NodeDiskInfo)
+		done := make(chan bool)
+		var waitGrp sync.WaitGroup
+		waitGrp.Add(len(clusterNodes.Data))
+		go func() {
+			waitGrp.Wait()
+			close(done)
+		}()
 		for _, clusterNode := range clusterNodes.Data {
-			if clusterNode.Status != "online" {
-				log.Printf("Skipping node %s - its offline", clusterNode.Node)
-				continue
-			}
-			var nodeStorage hostDiskList
-			nodeStorage, err := getNodeDisks(selectedObj.Parent, selectedObj.Port, selectedObj.Token, clusterNode.Node)
-			if err != nil {
-				log.Printf("Failed to obtain the disks for %s - %v", clusterNode.Node, err)
-				continue
-			}
-
-			for _, v := range nodeStorage.Data {
-				var temporary NodeDiskInfo
-
-				switch val := v.Wearout.(type) {
-				case float64:
-					temporary.Wearout = int(val)
-				case string:
-					temporary.Wearout = int(100)
+			go func() {
+				defer waitGrp.Done()
+				if clusterNode.NodeStatus != "online" {
+					var temporary NodeDiskInfo
+					temporary.Parent = selectedObj.Parent
+					temporary.Node = clusterNode.Node
+					temporary.NodeStatus = clusterNode.NodeStatus
+					diskList.Data = append(diskList.Data, temporary)
+					log.Printf("Skipping node %s - its offline", clusterNode.Node)
+					return
+				}
+				var nodeStorage hostDiskList
+				nodeStorage, err := getNodeDisks(selectedObj.Parent, selectedObj.Port, selectedObj.Token, clusterNode.Node)
+				if err != nil {
+					log.Printf("Failed to obtain the disks for %s - %v", clusterNode.Node, err)
+					return
 				}
 
-				switch val := v.Rpm.(type) {
-				case float64:
-					temporary.Rpm = int(val)
-				case string:
-					i, err := strconv.Atoi(val)
-					if err != nil {
-						log.Printf("Failed to convert the RPM value for %s - %v", clusterNode.Node, err)
+				for _, v := range nodeStorage.Data {
+
+					var temporary NodeDiskInfo
+
+					switch val := v.Wearout.(type) {
+					case float64:
+						temporary.Wearout = int(val)
+					case string:
+						temporary.Wearout = int(100)
 					}
-					temporary.Rpm = i
+
+					switch val := v.Rpm.(type) {
+					case float64:
+						temporary.Rpm = int(val)
+					case string:
+						i, err := strconv.Atoi(val)
+						if err != nil {
+							log.Printf("Failed to convert the RPM value for %s - %v", clusterNode.Node, err)
+						}
+						temporary.Rpm = i
+					}
+
+					temporary.Parent = selectedObj.Parent
+					temporary.Node = clusterNode.Node
+					temporary.NodeStatus = clusterNode.NodeStatus
+					temporary.Gpt = v.Gpt
+					temporary.Vendor = v.Vendor
+					temporary.Devpath = v.Devpath
+					temporary.Health = v.Health
+					temporary.Type = v.Type
+					temporary.Serial = v.Serial
+					temporary.Model = v.Model
+					temporary.UsedGb = v.Size / (1024 * 1024 * 1024)
+
+					ch <- temporary
+
 				}
 
-				temporary.Parent = selectedObj.Parent
-				temporary.Node = clusterNode.Node
-				temporary.Gpt = v.Gpt
-				temporary.Vendor = v.Vendor
-				temporary.Devpath = v.Devpath
-				temporary.Health = v.Health
-				temporary.Type = v.Type
-				temporary.Serial = v.Serial
-				temporary.Model = v.Model
-				temporary.UsedGb = v.Size / (1024 * 1024 * 1024)
-
-				diskList.Data = append(diskList.Data, temporary)
+			}()
+		}
+	breakloop:
+		for {
+			select {
+			case <-done:
+				break breakloop
+			case data := <-ch:
+				diskList.Data = append(diskList.Data, data)
 			}
 		}
 	}

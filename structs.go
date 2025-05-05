@@ -42,7 +42,7 @@ type VmSummary struct {
 	Status        string `json:"status"`
 	Cpus          int    `json:"cpus"`
 	GuestMemoryGb int    `json:"mem"`
-	MaxMemoryGb   int    `json:"maxmem"`
+	MaxMemoryGb   int    `json:"maxMem"`
 	Uptime        int    `json:"uptime"`
 }
 
@@ -52,8 +52,9 @@ type NodeDetailsObject struct {
 
 type NodeDetails struct {
 	NodeInfo struct {
-		Parent string `json:"parent,omitempty"`
-		Node   string `json:"node,omitempty"`
+		Parent     string `json:"parent,omitempty"`
+		Node       string `json:"node,omitempty"`
+		NodeStatus string `json:"nodeStatus,omitempty"`
 	} `json:"nodeinfo"`
 	Cpuinfo struct {
 		Cores   int    `json:"cores,omitempty"`
@@ -88,15 +89,15 @@ type PVENodesObject struct {
 }
 
 type PVENodeInfo struct {
-	Parent      string  `json:"Parent,omitempty"`
+	Parent      string  `json:"parent,omitempty"`
 	Node        string  `json:"node,omitempty"`
-	Status      string  `json:"status,omitempty"`
-	MaxCPU      int     `json:"maxcpu"`
+	NodeStatus  string  `json:"status,omitempty"`
+	MaxCPU      int     `json:"maxCpu"`
 	UptimeHours int     `json:"uptime"`
 	Mem         int     `json:"mem"`
-	MaxMem      int     `json:"maxmem"`
+	MaxMem      int     `json:"maxMem"`
 	Cpu         float64 `json:"cpu"`
-	Maxdisk     int     `json:"maxdisk"`
+	Maxdisk     int     `json:"maxDisk"`
 	Disk        int     `json:"disk"`
 }
 
@@ -106,14 +107,14 @@ type NodeDnsObject struct {
 		Dns1   string `json:"dns1,omitempty"`
 		Dns2   string `json:"dns2,omitempty"`
 		Dns3   string `json:"dns3,omitempty"`
-	} `json:"data,omitempty"`
+	} `json:"data"`
 }
 
 type NodeTimeObject struct {
 	Data struct {
 		Time     int    `json:"time,omitempty"`
 		Timezone string `json:"timezone,omitempty"`
-	} `json:"data,omitempty"`
+	} `json:"data"`
 }
 
 type NodeStatusObject struct {
@@ -167,16 +168,16 @@ type NodeStatusObject struct {
 }
 
 type nodeSummaryWrapper struct {
-	Parent        string  `json:"Parent,omitempty"`
+	Parent        string  `json:"parent,omitempty"`
 	Node          string  `json:"node,omitempty"`
-	Status        string  `json:"status,omitempty"`
-	MaxCPU        int     `json:"maxcpu,omitempty"`
+	NodeStatus    string  `json:"nodestatus,omitempty"`
+	MaxCPU        int     `json:"maxCpu,omitempty"`
 	UptimeHours   int     `json:"uptimeHours,omitempty"`
 	MemGb         int     `json:"memGb,omitempty"`
-	MaxMemGb      int     `json:"maxmemGb,omitempty"`
+	MaxMemGb      int     `json:"maxMemGb,omitempty"`
 	Cpu           float64 `json:"cpuLoad,omitempty"`
-	MaxRootDiskGb int     `json:"maxdiskGb,omitempty"`
-	RootDiskGb    int     `json:"diskGb,omitempty"`
+	MaxRootDiskGb int     `json:"maxRootDiskGb,omitempty"`
+	RootDiskGb    int     `json:"rootDiskGb,omitempty"`
 }
 
 type QemuGuestWrapper struct {
@@ -184,16 +185,16 @@ type QemuGuestWrapper struct {
 }
 
 type QemuGuestInfo struct {
-	Status      any `json:"status"`
-	Hostname    any `json:"hostname"`
-	OSInfo      any `json:"osinfo"`
-	NetworkInfo any `json:"network"`
+	Status      QemuGuestStatus                    `json:"status"`
+	Hostname    QemuHostNameInfo                   `json:"hostname"`
+	OSInfo      QemuOSInfo                         `json:"osinfo"`
+	NetworkInfo []QemuGuestNetworkInfoObjectResult `json:"network"`
 }
 
 type QemuGuestStatus struct {
 	Parent         string  `json:"parent,omitempty"`
 	Name           string  `json:"name,omitempty"`
-	Status         string  `json:"status,omitempty"`
+	NodeStatus     string  `json:"nodestatus,omitempty"`
 	Agent          int     `json:"agent,omitempty"`
 	DiskreadMB     int     `json:"diskreadMB,omitempty"`
 	DiskwriteMB    int     `json:"diskwriteMB,omitempty"`
@@ -255,32 +256,35 @@ type QemuOSInfo struct {
 
 type QemuGuestNetworkInfoObject struct {
 	Data struct {
-		Result []struct {
-			Name          string `json:"name"`
-			IPAddressList []struct {
-				IPAddress string `json:"ip-address"`
-				Prefix    int    `json:"prefix"`
-				Type      string `json:"ip-address-type"`
-			} `json:"ip-addresses"`
-			HardwareAddress string `json:"hardware-address"`
-		} `json:"result"`
+		Result []QemuGuestNetworkInfoObjectResult `json:"result,omitempty"`
 	} `json:"data"`
+}
+
+type QemuGuestNetworkInfoObjectResult struct {
+	Name          string `json:"name"`
+	IPAddressList []struct {
+		IPAddress string `json:"ip-address"`
+		Prefix    int    `json:"prefix"`
+		Type      string `json:"ip-address-type"`
+	} `json:"ip-addresses"`
+	HardwareAddress string `json:"hardware-address"`
 }
 
 type LxcInfo struct {
 	Parent      string `json:"parent"`
 	Node        string `json:"node"`
+	NodeStatus  string `json:"nodeStatus"`
 	Name        string `json:"name,omitempty"`
 	Vmid        int    `json:"vmid,omitempty"`
 	Status      string `json:"status,omitempty"`
 	Tags        string `json:"tags,omitempty"`
-	UptimeHours int    `json:"uptimehours,omitempty"`
-	NetoutMb    int    `json:"netoutmb,omitempty"`
-	NetinMb     int    `json:"netinmb,omitempty"`
-	DiskreadMb  int    `json:"diskreadmb,omitempty"`
-	DiskwriteMb int    `json:"diskwritemb,omitempty"`
-	MemoryMb    int    `json:"memmb,omitempty"`
-	MaxMemoryMb int    `json:"maxmemmb,omitempty"`
+	UptimeHours int    `json:"uptimeHours,omitempty"`
+	NetoutMb    int    `json:"netOutMb,omitempty"`
+	NetinMb     int    `json:"netInMb,omitempty"`
+	DiskreadMb  int    `json:"diskReadMb,omitempty"`
+	DiskwriteMb int    `json:"diskWriteMb,omitempty"`
+	MemoryMb    int    `json:"memMb,omitempty"`
+	MaxMemoryMb int    `json:"maxMemMb,omitempty"`
 }
 
 type LxcEntryObject struct {
@@ -324,6 +328,7 @@ type NodeStorageObject struct {
 type NodeStorageInfo struct {
 	Parent      string `json:"parent,omitempty"`
 	Node        string `json:"node,omitempty"`
+	NodeStatus  string `json:"nodeStatus,omitempty"`
 	Storage     string `json:"storage,omitempty"`
 	Active      int    `json:"active,omitempty"`
 	Enabled     int    `json:"enabled,omitempty"`
@@ -340,19 +345,20 @@ type NodeDiskObject struct {
 }
 
 type NodeDiskInfo struct {
-	Parent  string `json:"parent,omitempty"`
-	Node    string `json:"node,omitempty"`
-	Vendor  string `json:"vendor,omitempty"`
-	Gpt     int    `json:"gpt,omitempty"`
-	Devpath string `json:"devpath,omitempty"`
-	Health  string `json:"health,omitempty"`
-	Type    string `json:"type,omitempty"`
-	Wearout int    `json:"wearout,omitempty"`
-	Serial  string `json:"serial,omitempty"`
-	UsedGb  int    `json:"used,omitempty"`
-	Model   string `json:"model,omitempty"`
-	Size    int    `json:"size,omitempty"`
-	Rpm     any    `json:"rpm,omitempty"`
+	Parent     string `json:"parent,omitempty"`
+	Node       string `json:"node,omitempty"`
+	NodeStatus string `json:"nodeStatus,omitempty"`
+	Vendor     string `json:"vendor"`
+	Gpt        int    `json:"gpt"`
+	Devpath    string `json:"devpath"`
+	Health     string `json:"health"`
+	Type       string `json:"type"`
+	Wearout    int    `json:"wearout"`
+	Serial     string `json:"serial"`
+	UsedGb     int    `json:"used"`
+	Model      string `json:"model"`
+	Size       int    `json:"size"`
+	Rpm        any    `json:"rpm"`
 }
 
 type hostDiskList struct {
