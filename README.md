@@ -65,13 +65,13 @@ To run the program from Powershell:
 $objects = @(
     @{
         Type  = "cluster"
-        Name  = "parent01.stillbooting.dev"
+        Name  = "parent01.domain.tld"
         Token = "<API Token>"
         Port  = 8006
     },
     @{
         Type  = "node"
-        Name  = "parent02.stillbooting.dev"
+        Name  = "parent02.domain.tld"
         Token = "<API Token>"
         Port  = 8006
     }
@@ -105,8 +105,8 @@ spec:
             - name: OBJECTS_JSON
               value: |
                 [
-                  {"Type":"cluster","Name":"parent01.stillbooting.dev","Token":"<API Token>","Port":8006},
-                  {"Type":"node","Name":"parent02.stillbooting.dev","Token":"<API Token>","Port":8006}
+                  {"Type":"cluster","Name":"parent01.domain.tld","Token":"<API Token>","Port":8006},
+                  {"Type":"node","Name":"parent02.domain.tld","Token":"<API Token>","Port":8006}
                 ]
 
 ```

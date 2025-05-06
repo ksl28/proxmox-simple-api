@@ -10,56 +10,66 @@ import (
 )
 
 func vmSummary(c *gin.Context) {
-	selectedObjs, err := convertJSON()
+	parentObjects, err := convertJSON()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to convert the JSON data - %v", err)})
 		return
 	}
 
-	var allVms []VmSummary
-	for _, obj := range selectedObjs {
-		v, err := testHostPort(obj.Parent, obj.Port)
-		if err != nil {
-			log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Parent, err)
-			continue
-		}
-		if v {
-			datacenterNodes, err := getDatacenterNodes(obj.Parent, obj.Port, obj.Token)
+	ch := make(chan []VmSummary, len(parentObjects))
+	for _, obj := range parentObjects {
+		go func(obj PVEConnectionObject) {
+			var vmSlice []VmSummary
+			v, err := testHostPort(obj.Parent, obj.Port)
 			if err != nil {
-				log.Printf("Failed to obtain the datacenter nodes for %s - %v", obj.Parent, err)
-				continue
+				log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Parent, err)
 			}
-
-			for _, singleNode := range datacenterNodes.Data {
-				if singleNode.NodeStatus != "online" {
-					log.Printf("Skipping node %s (offline)", singleNode.Node)
-					continue
-				}
-				customUrl := fmt.Sprintf("https://%s:%d/api2/json/nodes/%v/qemu", obj.Parent, obj.Port, singleNode.Node)
-				req, err := http.NewRequest(http.MethodGet, customUrl, nil)
+			if v {
+				datacenterNodes, err := getDatacenterNodes(obj.Parent, obj.Port, obj.Token)
 				if err != nil {
-					log.Printf("Failed to create HTTP request for %v - %v", singleNode.Node, err)
-					continue
+					log.Printf("Failed to obtain the datacenter nodes for %s - %v", obj.Parent, err)
 				}
 
-				var nodeVms VmSummaryObject
-				if err := sendRequest(req, &nodeVms, obj.Token); err != nil {
-					log.Printf("Failed to process the request for %s - error %v", customUrl, err)
-					continue
+				for _, singleNode := range datacenterNodes.Data {
+					if singleNode.NodeStatus != "online" {
+						log.Printf("Skipping node %s (offline)", singleNode.Node)
+						continue
+					}
+					customUrl := fmt.Sprintf("https://%s:%d/api2/json/nodes/%v/qemu", obj.Parent, obj.Port, singleNode.Node)
+					req, err := http.NewRequest(http.MethodGet, customUrl, nil)
+					if err != nil {
+						log.Printf("Failed to create HTTP request for %v - %v", singleNode.Node, err)
+						continue
+					}
+
+					var nodeVms VmSummaryObject
+					if err := sendRequest(req, &nodeVms, obj.Token); err != nil {
+						log.Printf("Failed to process the request for %s - error %v", customUrl, err)
+						continue
+					}
+
+					for i := range nodeVms.Data {
+						nodeVms.Data[i].Parent = obj.Parent
+						nodeVms.Data[i].Node = singleNode.Node
+						nodeVms.Data[i].MaxMemoryGb = nodeVms.Data[i].MaxMemoryGb / 1024 / 1024
+						nodeVms.Data[i].GuestMemoryGb = nodeVms.Data[i].GuestMemoryGb / 1024 / 1024
+
+					}
+
+					vmSlice = append(vmSlice, nodeVms.Data...)
+					ch <- vmSlice
 				}
 
-				for i := range nodeVms.Data {
-					nodeVms.Data[i].Parent = obj.Parent
-					nodeVms.Data[i].Node = singleNode.Node
-					nodeVms.Data[i].MaxMemoryGb = nodeVms.Data[i].MaxMemoryGb / 1024 / 1024
-					nodeVms.Data[i].GuestMemoryGb = nodeVms.Data[i].GuestMemoryGb / 1024 / 1024
-
-				}
-
-				allVms = append(allVms, nodeVms.Data...)
 			}
-		}
+		}(obj)
 	}
+
+	var allVms []VmSummary
+	for i := 0; i < len(parentObjects); i++ {
+		batch := <-ch
+		allVms = append(allVms, batch...)
+	}
+
 	c.JSON(http.StatusOK, allVms)
 }
 
@@ -69,15 +79,15 @@ func vmDetailedOverview(c *gin.Context) {
 	qemuId := c.Param("id")
 	parentName := c.Param("parent")
 	if qemuId == "" || parentName == "" {
-		c.JSON(http.StatusNotFound, gin.H{"error": "VM ID not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "The VM or Parent id is not added to the query."})
 		return
 	}
-	selectedObjs, err := convertJSON()
+	parentObjects, err := convertJSON()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to convert the JSON data - %v", err)})
 		return
 	}
-	for _, selectedObj := range selectedObjs {
+	for _, selectedObj := range parentObjects {
 		if selectedObj.Parent == parentName {
 			v, err := testHostPort(selectedObj.Parent, selectedObj.Port)
 			if err != nil {
@@ -161,6 +171,9 @@ func vmDetailedOverview(c *gin.Context) {
 					}
 
 					result.Data = qemuCombined
+				} else {
+					c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("The Qemu ID %s was not found of %s - no errors were encountered.", qemuId, parentName)})
+					return
 				}
 			}
 		}

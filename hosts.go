@@ -131,7 +131,7 @@ func nodeGuestsOverview(guestType string, parent string, port int, node string, 
 
 func detailedHostOverview(c *gin.Context) {
 	hostName := c.Param("parent")
-	rawObj, err := convertJSON()
+	parentObjects, err := convertJSON()
 	if err != nil {
 		log.Printf("Failed to convert the JSON values - %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to obtain the JSON data from the environment variable - %v", err)})
@@ -139,7 +139,7 @@ func detailedHostOverview(c *gin.Context) {
 	}
 	var selectedObj PVEConnectionObject
 	var found bool
-	for _, obj := range rawObj {
+	for _, obj := range parentObjects {
 		if obj.Parent == hostName {
 			selectedObj = obj
 			found = true

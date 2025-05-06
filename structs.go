@@ -3,7 +3,6 @@ package main
 import "time"
 
 type PVEConnectionObject struct {
-	Type   string `json:"Type"`
 	Parent string `json:"Parent"`
 	Token  string `json:"Token"`
 	Port   int    `json:"Port"`
@@ -270,21 +269,26 @@ type QemuGuestNetworkInfoObjectResult struct {
 	HardwareAddress string `json:"hardware-address"`
 }
 
+type LxcSummaryResponse struct {
+	Data   []LxcInfo  `json:"data"`
+	Errors []ApiError `json:"errors"`
+}
+
 type LxcInfo struct {
 	Parent      string `json:"parent"`
 	Node        string `json:"node"`
 	NodeStatus  string `json:"nodeStatus"`
-	Name        string `json:"name,omitempty"`
-	Vmid        int    `json:"vmid,omitempty"`
-	Status      string `json:"status,omitempty"`
-	Tags        string `json:"tags,omitempty"`
-	UptimeHours int    `json:"uptimeHours,omitempty"`
-	NetoutMb    int    `json:"netOutMb,omitempty"`
-	NetinMb     int    `json:"netInMb,omitempty"`
-	DiskreadMb  int    `json:"diskReadMb,omitempty"`
-	DiskwriteMb int    `json:"diskWriteMb,omitempty"`
-	MemoryMb    int    `json:"memMb,omitempty"`
-	MaxMemoryMb int    `json:"maxMemMb,omitempty"`
+	Name        string `json:"name"`
+	Vmid        int    `json:"vmid"`
+	Status      string `json:"status"`
+	Tags        string `json:"tags"`
+	UptimeHours int    `json:"uptimeHours"`
+	NetoutMb    int    `json:"netOutMb"`
+	NetinMb     int    `json:"netInMb"`
+	DiskreadMb  int    `json:"diskReadMb"`
+	DiskwriteMb int    `json:"diskWriteMb"`
+	MemoryMb    int    `json:"memMb"`
+	MaxMemoryMb int    `json:"maxMemMb"`
 }
 
 type LxcEntryObject struct {
@@ -375,4 +379,11 @@ type hostDiskList struct {
 		Size    int    `json:"size,omitempty"`
 		Rpm     any    `json:"rpm,omitempty"`
 	}
+}
+
+type ApiError struct {
+	Parent  string `json:"parent"`
+	Node    string `json:"node,omitempty"`
+	Action  string `json:"action"`
+	Message string `json:"message"`
 }
