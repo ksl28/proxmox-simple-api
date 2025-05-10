@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -139,6 +138,12 @@ func detailedHostOverview(c *gin.Context) {
 	}
 	var selectedObj PVEConnectionObject
 	var found bool
+
+	var (
+		results []NodeDetails
+		errors  []ApiError
+	)
+
 	for _, obj := range parentObjects {
 		if obj.Parent == hostName {
 			selectedObj = obj
@@ -150,68 +155,96 @@ func detailedHostOverview(c *gin.Context) {
 	if found {
 		clusterData, err := getDatacenterNodes(selectedObj.Parent, selectedObj.Port, selectedObj.Token)
 		if err != nil {
+			errors = append(errors, ApiError{
+				Parent:  selectedObj.Parent,
+				Action:  "getDatacenterNodes",
+				Message: err.Error(),
+			})
 			log.Printf("Failed to get cluster nodes - %v", err)
+			c.JSON(http.StatusInternalServerError, NodeDetailsResponse{
+				Data:   results,
+				Errors: errors,
+			})
 			return
 		}
 
 		clusterNodes := clusterData.Data
 
-		var results []NodeDetailsObject
 		for _, obj := range clusterNodes {
-			var detailedHost NodeDetailsObject
+			var detailedHost NodeDetails
 
 			if obj.NodeStatus != "online" {
-				detailedHost.Data.NodeInfo.Node = obj.Node
-				detailedHost.Data.NodeInfo.Parent = selectedObj.Parent
-				detailedHost.Data.NodeInfo.NodeStatus = obj.NodeStatus
+				detailedHost.NodeInfo.Node = obj.Node
+				detailedHost.NodeInfo.Parent = selectedObj.Parent
+				detailedHost.NodeInfo.NodeStatus = obj.NodeStatus
 				results = append(results, detailedHost)
 				log.Printf("Skipping node %s - its offline", obj.Node)
-
 				continue
 			}
 
 			nodeStatus, err := getNodeStatus(selectedObj.Parent, selectedObj.Port, selectedObj.Token, obj.Node)
 			if err != nil {
+				errors = append(errors, ApiError{
+					Parent:  selectedObj.Parent,
+					Node:    obj.Node,
+					Action:  "getNodeStatus",
+					Message: err.Error(),
+				})
 				log.Printf("Failed to get the node status for %s - %v", obj.Node, err)
 				continue
 			}
 
 			NodeDnsObject, err := getNodeDnsObject(selectedObj.Parent, selectedObj.Port, selectedObj.Token, obj.Node)
 			if err != nil {
+				errors = append(errors, ApiError{
+					Parent:  selectedObj.Parent,
+					Node:    obj.Node,
+					Action:  "getNodeDnsObject",
+					Message: err.Error(),
+				})
 				log.Printf("Failed to get the node DNS for %s - %v", obj.Node, err)
 				continue
 			}
 
 			NodeTimeObject, err := getNodeTimeObject(selectedObj.Parent, selectedObj.Port, selectedObj.Token, obj.Node)
 			if err != nil {
+				errors = append(errors, ApiError{
+					Parent:  selectedObj.Parent,
+					Node:    obj.Node,
+					Action:  "getNodeTimeObject",
+					Message: err.Error(),
+				})
 				log.Printf("Failed to get the time configuration for %s - %v", obj.Node, err)
 				continue
 			}
 
-			detailedHost.Data.NodeInfo.Node = obj.Node
-			detailedHost.Data.NodeInfo.Parent = selectedObj.Parent
-			detailedHost.Data.NodeInfo.NodeStatus = obj.NodeStatus
-			detailedHost.Data.Dns.Dns1 = NodeDnsObject.Data.Dns1
-			detailedHost.Data.Dns.Dns2 = NodeDnsObject.Data.Dns2
-			detailedHost.Data.Dns.Dns3 = NodeDnsObject.Data.Dns3
-			detailedHost.Data.Dns.Search = NodeDnsObject.Data.Search
-			detailedHost.Data.BootInfo.Mode = nodeStatus.Data.BootInfo.Mode
-			detailedHost.Data.BootInfo.Secureboot = nodeStatus.Data.BootInfo.Secureboot
-			detailedHost.Data.Cpuinfo.Cpus = nodeStatus.Data.Cpuinfo.Cpus
-			detailedHost.Data.Cpuinfo.Cores = nodeStatus.Data.Cpuinfo.Cores
-			detailedHost.Data.Cpuinfo.Model = nodeStatus.Data.Cpuinfo.Model
-			detailedHost.Data.Cpuinfo.Mhz = nodeStatus.Data.Cpuinfo.Mhz
-			detailedHost.Data.Cpuinfo.Sockets = nodeStatus.Data.Cpuinfo.Sockets
-			detailedHost.Data.Pveversion = nodeStatus.Data.Pveversion
-			detailedHost.Data.CurrentKernel.Release = nodeStatus.Data.CurrentKernel.Release
-			detailedHost.Data.CurrentKernel.Machine = nodeStatus.Data.CurrentKernel.Machine
-			detailedHost.Data.Time.Time = time.Unix(int64(NodeTimeObject.Data.Time), 0)
-			detailedHost.Data.Time.Timezone = NodeTimeObject.Data.Timezone
+			detailedHost.NodeInfo.Node = obj.Node
+			detailedHost.NodeInfo.Parent = selectedObj.Parent
+			detailedHost.NodeInfo.NodeStatus = obj.NodeStatus
+			detailedHost.Dns.Dns1 = NodeDnsObject.Data.Dns1
+			detailedHost.Dns.Dns2 = NodeDnsObject.Data.Dns2
+			detailedHost.Dns.Dns3 = NodeDnsObject.Data.Dns3
+			detailedHost.Dns.Search = NodeDnsObject.Data.Search
+			detailedHost.BootInfo.Mode = nodeStatus.Data.BootInfo.Mode
+			detailedHost.BootInfo.Secureboot = nodeStatus.Data.BootInfo.Secureboot
+			detailedHost.Cpuinfo.Cpus = nodeStatus.Data.Cpuinfo.Cpus
+			detailedHost.Cpuinfo.Cores = nodeStatus.Data.Cpuinfo.Cores
+			detailedHost.Cpuinfo.Model = nodeStatus.Data.Cpuinfo.Model
+			detailedHost.Cpuinfo.Mhz = nodeStatus.Data.Cpuinfo.Mhz
+			detailedHost.Cpuinfo.Sockets = nodeStatus.Data.Cpuinfo.Sockets
+			detailedHost.Pveversion = nodeStatus.Data.Pveversion
+			detailedHost.CurrentKernel.Release = nodeStatus.Data.CurrentKernel.Release
+			detailedHost.CurrentKernel.Machine = nodeStatus.Data.CurrentKernel.Machine
+			detailedHost.Time.Time = time.Unix(int64(NodeTimeObject.Data.Time), 0)
+			detailedHost.Time.Timezone = NodeTimeObject.Data.Timezone
 			results = append(results, detailedHost)
 
 		}
 
-		c.JSON(http.StatusOK, results)
+		c.JSON(http.StatusOK, NodeDetailsResponse{
+			Data:   results,
+			Errors: errors,
+		})
 	} else {
 		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("The parent entered (%s) is not present in the environment variable - please adjust.", hostName)})
 	}
@@ -290,11 +323,24 @@ func getNodeStorageOverview(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("The parent entered (%s) is not present in the environment variable - please adjust.", parentName)})
 		return
 	}
-	var storageList NodeStorageObject
+
+	var (
+		storageList NodeStorageResponse
+		errors      []ApiError
+	)
 
 	portOpen, err := testHostPort(selectedObj.Parent, selectedObj.Port)
 	if err != nil {
+		errors = append(errors, ApiError{
+			Parent:  selectedObj.Parent,
+			Action:  "testHostPort",
+			Message: err.Error(),
+		})
 		log.Printf("Failed to check if the port was open on %s:%d - %v", selectedObj.Parent, selectedObj.Port, err)
+		c.JSON(http.StatusInternalServerError, NodeStorageResponse{
+			Data:   storageList.Data,
+			Errors: errors,
+		})
 		return
 	}
 
@@ -302,7 +348,16 @@ func getNodeStorageOverview(c *gin.Context) {
 
 		clusterNodes, err := getDatacenterNodes(selectedObj.Parent, selectedObj.Port, selectedObj.Token)
 		if err != nil {
+			errors = append(errors, ApiError{
+				Parent:  selectedObj.Parent,
+				Action:  "testHostPort",
+				Message: err.Error(),
+			})
 			log.Printf("Failed to obtain the cluster nodes for %s - %v", selectedObj.Parent, err)
+			c.JSON(http.StatusInternalServerError, NodeStorageResponse{
+				Data:   storageList.Data,
+				Errors: errors,
+			})
 			return
 		}
 
@@ -320,6 +375,12 @@ func getNodeStorageOverview(c *gin.Context) {
 			var nodeStorage hostStorageList
 			nodeStorage, err := getNodeStorage(selectedObj.Parent, selectedObj.Port, selectedObj.Token, clusterNode.Node)
 			if err != nil {
+				errors = append(errors, ApiError{
+					Parent:  selectedObj.Parent,
+					Node:    clusterNode.Node,
+					Action:  "getNodeStorage",
+					Message: err.Error(),
+				})
 				log.Printf("Failed to obtain the storage for %s - %v", clusterNode.Node, err)
 				continue
 			}
@@ -342,9 +403,22 @@ func getNodeStorageOverview(c *gin.Context) {
 			}
 
 		}
+	} else {
+		c.JSON(http.StatusBadGateway, NodeStorageResponse{
+			Data: storageList.Data,
+			Errors: append(errors, ApiError{
+				Parent:  selectedObj.Parent,
+				Action:  "testHostPort",
+				Message: fmt.Sprintf("port %d closed", selectedObj.Port),
+			}),
+		})
+		return
 	}
 
-	c.JSON(http.StatusOK, storageList)
+	c.JSON(http.StatusOK, NodeStorageResponse{
+		Data:   storageList.Data,
+		Errors: errors,
+	})
 }
 
 func getNodeStorage(parent string, port int, apiToken string, node string) (hostStorageList, error) {
@@ -386,7 +460,6 @@ func getNodeDisks(parent string, port int, apiToken string, node string) (hostDi
 
 func getNodeDiskOverview(c *gin.Context) {
 	parentName := c.Param("parent")
-
 	clusterObjects, err := convertJSON()
 	if err != nil {
 		log.Printf("Failed to convert the JSON objects - %v", err)
@@ -408,46 +481,62 @@ func getNodeDiskOverview(c *gin.Context) {
 		return
 	}
 
-	var diskList NodeDiskObject
+	var (
+		diskList NodeDiskObject
+		errors   []ApiError
+	)
 
 	portOpen, err := testHostPort(selectedObj.Parent, selectedObj.Port)
 	if err != nil {
+		errors = append(errors, ApiError{
+			Parent:  selectedObj.Parent,
+			Action:  "testHostPort",
+			Message: err.Error(),
+		})
 		log.Printf("Failed to check if the port was open on %s:%d - %v", selectedObj.Parent, selectedObj.Port, err)
+		c.JSON(http.StatusBadGateway, NodeDiskObject{
+			Data:   diskList.Data,
+			Errors: errors,
+		})
 		return
 	}
 
 	if portOpen {
-
 		clusterNodes, err := getDatacenterNodes(selectedObj.Parent, selectedObj.Port, selectedObj.Token)
 		if err != nil {
-			log.Printf("Failed to obtain the cluster nodes for %s - %v", selectedObj.Parent, err)
+			log.Printf(
+				"Failed to obtain the cluster nodes for %s - %v", selectedObj.Parent, err)
+			c.JSON(http.StatusInternalServerError, NodeDiskObject{
+				Data: diskList.Data,
+				Errors: append(errors, ApiError{
+					Parent:  selectedObj.Parent,
+					Action:  "getDatacenterNodes",
+					Message: err.Error(),
+				}),
+			})
 			return
 		}
 
-		ch := make(chan NodeDiskInfo)
-		done := make(chan bool)
-		var waitGrp sync.WaitGroup
-		waitGrp.Add(len(clusterNodes.Data))
-		go func() {
-			waitGrp.Wait()
-			close(done)
-		}()
+		ch := make(chan NodeDiskInfo, len(clusterNodes.Data))
+		errCh := make(chan ApiError, len(clusterNodes.Data)*2)
 		for _, clusterNode := range clusterNodes.Data {
+			node := clusterNode
 			go func() {
-				defer waitGrp.Done()
-				if clusterNode.NodeStatus != "online" {
-					var temporary NodeDiskInfo
-					temporary.Parent = selectedObj.Parent
-					temporary.Node = clusterNode.Node
-					temporary.NodeStatus = clusterNode.NodeStatus
-					diskList.Data = append(diskList.Data, temporary)
-					log.Printf("Skipping node %s - its offline", clusterNode.Node)
+				if node.NodeStatus != "online" {
+					ch <- NodeDiskInfo{Parent: selectedObj.Parent, Node: node.Node, NodeStatus: node.NodeStatus}
+					log.Printf("Skipping node %s - its offline", node.Node)
 					return
 				}
 				var nodeStorage hostDiskList
-				nodeStorage, err := getNodeDisks(selectedObj.Parent, selectedObj.Port, selectedObj.Token, clusterNode.Node)
+				nodeStorage, err := getNodeDisks(selectedObj.Parent, selectedObj.Port, selectedObj.Token, node.Node)
 				if err != nil {
-					log.Printf("Failed to obtain the disks for %s - %v", clusterNode.Node, err)
+					errCh <- ApiError{
+						Parent:  selectedObj.Parent,
+						Node:    node.Node,
+						Action:  "getNodeDisks",
+						Message: err.Error(),
+					}
+					log.Printf("Failed to obtain the disks for %s - %v", node.Node, err)
 					return
 				}
 
@@ -468,14 +557,14 @@ func getNodeDiskOverview(c *gin.Context) {
 					case string:
 						i, err := strconv.Atoi(val)
 						if err != nil {
-							log.Printf("Failed to convert the RPM value for %s - %v", clusterNode.Node, err)
+							log.Printf("Failed to convert the RPM value for %s - %v", node.Node, err)
 						}
 						temporary.Rpm = i
 					}
 
 					temporary.Parent = selectedObj.Parent
-					temporary.Node = clusterNode.Node
-					temporary.NodeStatus = clusterNode.NodeStatus
+					temporary.Node = node.Node
+					temporary.NodeStatus = node.NodeStatus
 					temporary.Gpt = v.Gpt
 					temporary.Vendor = v.Vendor
 					temporary.Devpath = v.Devpath
@@ -491,16 +580,29 @@ func getNodeDiskOverview(c *gin.Context) {
 
 			}()
 		}
-	breakloop:
-		for {
-			select {
-			case <-done:
-				break breakloop
-			case data := <-ch:
-				diskList.Data = append(diskList.Data, data)
-			}
+
+		for i := 0; i < len(clusterNodes.Data); i++ {
+			diskList.Data = append(diskList.Data, <-ch)
 		}
+
+		for len(errCh) > 0 {
+			errors = append(errors, <-errCh)
+		}
+
+		c.JSON(http.StatusOK, NodeDiskObject{
+			Data:   diskList.Data,
+			Errors: errors,
+		})
+	} else {
+		c.JSON(http.StatusBadGateway, NodeDiskObject{
+			Data: diskList.Data,
+			Errors: append(errors, ApiError{
+				Parent:  selectedObj.Parent,
+				Action:  "testHostPort",
+				Message: fmt.Sprintf("port %d closed", selectedObj.Port),
+			}),
+		})
+		return
 	}
 
-	c.JSON(http.StatusOK, diskList)
 }

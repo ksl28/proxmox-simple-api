@@ -33,9 +33,15 @@ type VmSummaryObject struct {
 	Data []VmSummary `json:"data"`
 }
 
+type VmSummaryResponse struct {
+	Data   []VmSummary `json:"data"`
+	Errors []ApiError  `json:"errors"`
+}
+
 type VmSummary struct {
 	Parent        string `json:"parent"`
 	Node          string `json:"node"`
+	NodeStatus    string `json:"nodeStatus"`
 	Name          string `json:"name"`
 	Vmid          int    `json:"vmid"`
 	Status        string `json:"status"`
@@ -45,8 +51,9 @@ type VmSummary struct {
 	Uptime        int    `json:"uptime"`
 }
 
-type NodeDetailsObject struct {
-	Data NodeDetails `json:"data"`
+type NodeDetailsResponse struct {
+	Data   []NodeDetails `json:"data"`
+	Errors []ApiError    `json:"errors"`
 }
 
 type NodeDetails struct {
@@ -167,20 +174,21 @@ type NodeStatusObject struct {
 }
 
 type nodeSummaryWrapper struct {
-	Parent        string  `json:"parent,omitempty"`
-	Node          string  `json:"node,omitempty"`
-	NodeStatus    string  `json:"nodestatus,omitempty"`
-	MaxCPU        int     `json:"maxCpu,omitempty"`
-	UptimeHours   int     `json:"uptimeHours,omitempty"`
-	MemGb         int     `json:"memGb,omitempty"`
-	MaxMemGb      int     `json:"maxMemGb,omitempty"`
-	Cpu           float64 `json:"cpuLoad,omitempty"`
-	MaxRootDiskGb int     `json:"maxRootDiskGb,omitempty"`
-	RootDiskGb    int     `json:"rootDiskGb,omitempty"`
+	Parent        string  `json:"parent"`
+	Node          string  `json:"node"`
+	NodeStatus    string  `json:"nodestatus"`
+	MaxCPU        int     `json:"maxCpu"`
+	UptimeHours   int     `json:"uptimeHours"`
+	MemGb         int     `json:"memGb"`
+	MaxMemGb      int     `json:"maxMemGb"`
+	Cpu           float64 `json:"cpuLoad"`
+	MaxRootDiskGb int     `json:"maxRootDiskGb"`
+	RootDiskGb    int     `json:"rootDiskGb"`
 }
 
 type QemuGuestWrapper struct {
-	Data QemuGuestInfo `json:"data"`
+	Data   QemuGuestInfo `json:"data"`
+	Errors []ApiError    `json:"error"`
 }
 
 type QemuGuestInfo struct {
@@ -191,19 +199,19 @@ type QemuGuestInfo struct {
 }
 
 type QemuGuestStatus struct {
-	Parent         string  `json:"parent,omitempty"`
-	Name           string  `json:"name,omitempty"`
-	NodeStatus     string  `json:"nodestatus,omitempty"`
-	Agent          int     `json:"agent,omitempty"`
-	DiskreadMB     int     `json:"diskreadMB,omitempty"`
-	DiskwriteMB    int     `json:"diskwriteMB,omitempty"`
-	NetoutMB       int     `json:"netoutMB,omitempty"`
-	NetinMB        int     `json:"netinMB,omitempty"`
-	Cpus           int     `json:"cpus,omitempty"`
-	CpuLoad        float64 `json:"cpu,omitempty"`
-	MemoryMB       int     `json:"currentMemMB,omitempty"`
-	MaxMemoryMB    int     `json:"maxMemMB,omitempty"`
-	MachineVersion string  `json:"running-machine,omitempty"`
+	Parent         string  `json:"parent"`
+	Name           string  `json:"name"`
+	NodeStatus     string  `json:"nodestatus"`
+	Agent          int     `json:"agent"`
+	DiskreadMB     int     `json:"diskreadMB"`
+	DiskwriteMB    int     `json:"diskwriteMB"`
+	NetoutMB       int     `json:"netoutMB"`
+	NetinMB        int     `json:"netinMB"`
+	Cpus           int     `json:"cpus"`
+	CpuLoad        float64 `json:"cpu"`
+	MemoryMB       int     `json:"currentMemMB"`
+	MaxMemoryMB    int     `json:"maxMemMB"`
+	MachineVersion string  `json:"running-machine"`
 }
 
 type QemuCurrentStatusObject struct {
@@ -325,6 +333,11 @@ type hostStorageList struct {
 	} `json:"data,omitempty"`
 }
 
+type NodeStorageResponse struct {
+	Data   []NodeStorageInfo `json:"data"`
+	Errors []ApiError        `json:"errors"`
+}
+
 type NodeStorageObject struct {
 	Data []NodeStorageInfo `json:"data"`
 }
@@ -345,13 +358,14 @@ type NodeStorageInfo struct {
 }
 
 type NodeDiskObject struct {
-	Data []NodeDiskInfo `json:"data,omitempty"`
+	Data   []NodeDiskInfo `json:"data"`
+	Errors []ApiError     `json:"errors"`
 }
 
 type NodeDiskInfo struct {
-	Parent     string `json:"parent,omitempty"`
-	Node       string `json:"node,omitempty"`
-	NodeStatus string `json:"nodeStatus,omitempty"`
+	Parent     string `json:"parent"`
+	Node       string `json:"node"`
+	NodeStatus string `json:"nodeStatus"`
 	Vendor     string `json:"vendor"`
 	Gpt        int    `json:"gpt"`
 	Devpath    string `json:"devpath"`
