@@ -44,10 +44,11 @@ func lxcSummary(c *gin.Context) {
 			}
 			for _, node := range datacenterNodes.Data {
 				if node.NodeStatus != "online" {
-					allLxc = append(allLxc, LxcInfo{
-						Parent:     obj.Parent,
-						Node:       node.Node,
-						NodeStatus: node.NodeStatus,
+					errors = append(errors, ApiError{
+						Parent:  obj.Parent,
+						Node:    node.Node,
+						Action:  "onlineStatus",
+						Message: fmt.Sprintf("The node %s is offline according to Proxmox", node.Node),
 					})
 					log.Printf("Skipping node %s - its offline", node.Node)
 					continue

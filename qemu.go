@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,8 +24,11 @@ func vmSummary(c *gin.Context) {
 
 	ch := make(chan []VmSummary, len(parentObjects))
 	errCh := make(chan ApiError, len(parentObjects)*2)
+	var wg sync.WaitGroup
+	wg.Add(len(parentObjects))
 	for _, obj := range parentObjects {
 		go func(obj PVEConnectionObject) {
+			defer wg.Done()
 			var vmSlice []VmSummary
 			v, err := testHostPort(obj.Parent, obj.Port)
 			if err != nil {
@@ -43,11 +47,12 @@ func vmSummary(c *gin.Context) {
 
 				for _, singleNode := range datacenterNodes.Data {
 					if singleNode.NodeStatus != "online" {
-						allVms = append(allVms, VmSummary{
-							Parent:     obj.Parent,
-							Node:       singleNode.Node,
-							NodeStatus: singleNode.NodeStatus,
-						})
+						errCh <- ApiError{
+							Parent:  obj.Parent,
+							Node:    singleNode.Node,
+							Action:  "onlineStatus",
+							Message: fmt.Sprintf("The node %s appears to be offline according to Proxmox", singleNode.Node),
+						}
 						log.Printf("Skipping node %s (offline)", singleNode.Node)
 						continue
 					}
@@ -93,10 +98,11 @@ func vmSummary(c *gin.Context) {
 			}
 		}(obj)
 	}
-	for i := 0; i < len(parentObjects); i++ {
+	for range parentObjects {
 		batch := <-ch
 		allVms = append(allVms, batch...)
 	}
+	wg.Wait()
 	close(errCh)
 	for e := range errCh {
 		errors = append(errors, e)

@@ -19,14 +19,14 @@ type ClusterNodeEntry struct {
 }
 
 type NodeGuestOverview struct {
-	Data []GuestInfo `json:"data,omitempty"`
+	Data []GuestInfo `json:"data"`
 }
 
 type GuestInfo struct {
-	Parent string `json:"parent,omitempty"`
-	Node   string `json:"node,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Vmid   int    `json:"vmid,omitempty"`
+	Parent string `json:"parent"`
+	Node   string `json:"node"`
+	Name   string `json:"name"`
+	Vmid   int    `json:"vmid"`
 }
 
 type VmSummaryObject struct {
@@ -58,35 +58,35 @@ type NodeDetailsResponse struct {
 
 type NodeDetails struct {
 	NodeInfo struct {
-		Parent     string `json:"parent,omitempty"`
-		Node       string `json:"node,omitempty"`
-		NodeStatus string `json:"nodeStatus,omitempty"`
+		Parent     string `json:"parent"`
+		Node       string `json:"node"`
+		NodeStatus string `json:"nodeStatus"`
 	} `json:"nodeinfo"`
 	Cpuinfo struct {
-		Cores   int    `json:"cores,omitempty"`
-		Model   string `json:"model,omitempty"`
-		Mhz     string `json:"mhz,omitempty"`
-		Cpus    int    `json:"cpus,omitempty"`
-		Sockets int    `json:"sockets,omitempty"`
+		Cores   int    `json:"cores"`
+		Model   string `json:"model"`
+		Mhz     string `json:"mhz"`
+		Cpus    int    `json:"cpus"`
+		Sockets int    `json:"sockets"`
 	} `json:"cpuinfo"`
-	Pveversion string `json:"pveversion,omitempty"`
+	Pveversion string `json:"pveversion"`
 	BootInfo   struct {
-		Mode       string `json:"mode,omitempty"`
-		Secureboot int    `json:"secureboot,omitempty"`
+		Mode       string `json:"mode"`
+		Secureboot int    `json:"secureboot"`
 	} `json:"boot-info"`
 	CurrentKernel struct {
-		Release string `json:"release,omitempty"`
-		Machine string `json:"machine,omitempty"`
+		Release string `json:"release"`
+		Machine string `json:"machine"`
 	} `json:"current-kernel"`
 	Dns struct {
-		Dns1   string `json:"dns1,omitempty"`
-		Dns2   string `json:"dns2,omitempty"`
-		Dns3   string `json:"dns3,omitempty"`
-		Search string `json:"search,omitempty"`
+		Dns1   string `json:"dns1"`
+		Dns2   string `json:"dns2"`
+		Dns3   string `json:"dns3"`
+		Search string `json:"search"`
 	} `json:"dns"`
 	Time struct {
-		Time     time.Time `json:"time,omitempty"`
-		Timezone string    `json:"timezone,omitempty"`
+		Time     time.Time `json:"time"`
+		Timezone string    `json:"timezone"`
 	} `json:"time"`
 }
 
@@ -95,9 +95,9 @@ type PVENodesObject struct {
 }
 
 type PVENodeInfo struct {
-	Parent      string  `json:"parent,omitempty"`
-	Node        string  `json:"node,omitempty"`
-	NodeStatus  string  `json:"status,omitempty"`
+	Parent      string  `json:"parent"`
+	Node        string  `json:"node"`
+	NodeStatus  string  `json:"status"`
 	MaxCPU      int     `json:"maxCpu"`
 	UptimeHours int     `json:"uptime"`
 	Mem         int     `json:"mem"`
@@ -109,17 +109,17 @@ type PVENodeInfo struct {
 
 type NodeDnsObject struct {
 	Data struct {
-		Search string `json:"search,omitempty"`
-		Dns1   string `json:"dns1,omitempty"`
-		Dns2   string `json:"dns2,omitempty"`
-		Dns3   string `json:"dns3,omitempty"`
+		Search string `json:"search"`
+		Dns1   string `json:"dns1"`
+		Dns2   string `json:"dns2"`
+		Dns3   string `json:"dns3"`
 	} `json:"data"`
 }
 
 type NodeTimeObject struct {
 	Data struct {
-		Time     int    `json:"time,omitempty"`
-		Timezone string `json:"timezone,omitempty"`
+		Time     int    `json:"time"`
+		Timezone string `json:"timezone"`
 	} `json:"data"`
 }
 
@@ -216,25 +216,25 @@ type QemuGuestStatus struct {
 
 type QemuCurrentStatusObject struct {
 	Data struct {
-		Name           string  `json:"name,omitempty"`
-		Status         string  `json:"status,omitempty"`
-		Agent          int     `json:"agent,omitempty"`
-		Diskread       int     `json:"diskread,omitempty"`
-		Diskwrite      int     `json:"diskwrite,omitempty"`
-		Netout         int     `json:"netout,omitempty"`
-		Netin          int     `json:"netin,omitempty"`
-		Cpus           int     `json:"cpus,omitempty"`
-		CpuLoad        float64 `json:"cpu,omitempty"`
-		Memory         int     `json:"mem,omitempty"`
-		Maxmemory      int     `json:"maxmem,omitempty"`
-		MachineVersion string  `json:"running-machine,omitempty"`
+		Name           string  `json:"name"`
+		Status         string  `json:"status"`
+		Agent          int     `json:"agent"`
+		Diskread       int     `json:"diskread"`
+		Diskwrite      int     `json:"diskwrite"`
+		Netout         int     `json:"netout"`
+		Netin          int     `json:"netin"`
+		Cpus           int     `json:"cpus"`
+		CpuLoad        float64 `json:"cpu"`
+		Memory         int     `json:"mem"`
+		Maxmemory      int     `json:"maxmem"`
+		MachineVersion string  `json:"running-machine"`
 	} `json:"data"`
 }
 
 type QemuHostNameObject struct {
 	Data struct {
 		Result struct {
-			Hostname string `json:"host-name,omitempty"`
+			Hostname string `json:"host-name"`
 		} `json:"result"`
 	} `json:"data"`
 }
@@ -246,10 +246,10 @@ type QemuHostNameInfo struct {
 type QemuOSInfoObject struct {
 	Data struct {
 		Result struct {
-			Version       string `json:"version-id,omitempty"`
-			Name          string `json:"pretty-name,omitempty"`
-			KernelVersion string `json:"kernel-version,omitempty"`
-			KernelRelease string `json:"kernel-release,omitempty"`
+			Version       string `json:"version-id"`
+			Name          string `json:"pretty-name"`
+			KernelVersion string `json:"kernel-version"`
+			KernelRelease string `json:"kernel-release"`
 		} `json:"result"`
 	} `json:"data"`
 }
@@ -263,7 +263,7 @@ type QemuOSInfo struct {
 
 type QemuGuestNetworkInfoObject struct {
 	Data struct {
-		Result []QemuGuestNetworkInfoObjectResult `json:"result,omitempty"`
+		Result []QemuGuestNetworkInfoObjectResult `json:"result"`
 	} `json:"data"`
 }
 
@@ -304,33 +304,33 @@ type LxcEntryObject struct {
 }
 
 type LxcEntryInfo struct {
-	Parent    string `json:"parent,omitempty"`
-	Node      string `json:"node,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Vmid      int    `json:"vmid,omitempty"`
-	Status    string `json:"status,omitempty"`
-	Tags      string `json:"tags,omitempty"`
-	Uptime    int    `json:"uptime,omitempty"`
-	Netout    int    `json:"netout,omitempty"`
-	Netin     int    `json:"netin,omitempty"`
-	Diskread  int    `json:"diskread,omitempty"`
-	Diskwrite int    `json:"diskwrite,omitempty"`
-	Memory    int    `json:"mem,omitempty"`
-	MaxMemory int    `json:"maxmem,omitempty"`
+	Parent    string `json:"parent"`
+	Node      string `json:"node"`
+	Name      string `json:"name"`
+	Vmid      int    `json:"vmid"`
+	Status    string `json:"status"`
+	Tags      string `json:"tags"`
+	Uptime    int    `json:"uptime"`
+	Netout    int    `json:"netout"`
+	Netin     int    `json:"netin"`
+	Diskread  int    `json:"diskread"`
+	Diskwrite int    `json:"diskwrite"`
+	Memory    int    `json:"mem"`
+	MaxMemory int    `json:"maxmem"`
 }
 
 type hostStorageList struct {
 	Data []struct {
-		Storage   string `json:"storage,omitempty"`
-		Active    int    `json:"active,omitempty"`
-		Enabled   int    `json:"enabled,omitempty"`
-		Shared    int    `json:"shared,omitempty"`
-		Type      string `json:"type,omitempty"`
-		Content   string `json:"content,omitempty"`
-		Total     int    `json:"total,omitempty"`
-		Used      int    `json:"used,omitempty"`
-		Available int    `json:"avail,omitempty"`
-	} `json:"data,omitempty"`
+		Storage   string `json:"storage"`
+		Active    int    `json:"active"`
+		Enabled   int    `json:"enabled"`
+		Shared    int    `json:"shared"`
+		Type      string `json:"type"`
+		Content   string `json:"content"`
+		Total     int    `json:"total"`
+		Used      int    `json:"used"`
+		Available int    `json:"avail"`
+	} `json:"data"`
 }
 
 type NodeStorageResponse struct {
@@ -343,15 +343,15 @@ type NodeStorageObject struct {
 }
 
 type NodeStorageInfo struct {
-	Parent      string `json:"parent,omitempty"`
-	Node        string `json:"node,omitempty"`
-	NodeStatus  string `json:"nodeStatus,omitempty"`
-	Storage     string `json:"storage,omitempty"`
-	Active      int    `json:"active,omitempty"`
-	Enabled     int    `json:"enabled,omitempty"`
-	Shared      int    `json:"shared,omitempty"`
-	Type        string `json:"type,omitempty"`
-	Content     string `json:"content,omitempty"`
+	Parent      string `json:"parent"`
+	Node        string `json:"node"`
+	NodeStatus  string `json:"nodeStatus"`
+	Storage     string `json:"storage"`
+	Active      int    `json:"active"`
+	Enabled     int    `json:"enabled"`
+	Shared      int    `json:"shared"`
+	Type        string `json:"type"`
+	Content     string `json:"content"`
 	TotalGb     int    `json:"totalGb"`
 	UsedGb      int    `json:"usedGb"`
 	AvailableGb int    `json:"availableGb"`
@@ -381,23 +381,23 @@ type NodeDiskInfo struct {
 
 type hostDiskList struct {
 	Data []struct {
-		Vendor  string `json:"vendor,omitempty"`
-		Gpt     int    `json:"gpt,omitempty"`
-		Devpath string `json:"devpath,omitempty"`
-		Health  string `json:"health,omitempty"`
-		Type    string `json:"type,omitempty"`
-		Wearout any    `json:"wearout,omitempty"`
-		Serial  string `json:"serial,omitempty"`
-		Used    string `json:"used,omitempty"`
-		Model   string `json:"model,omitempty"`
-		Size    int    `json:"size,omitempty"`
-		Rpm     any    `json:"rpm,omitempty"`
+		Vendor  string `json:"vendor"`
+		Gpt     int    `json:"gpt"`
+		Devpath string `json:"devpath"`
+		Health  string `json:"health"`
+		Type    string `json:"type"`
+		Wearout any    `json:"wearout"`
+		Serial  string `json:"serial"`
+		Used    string `json:"used"`
+		Model   string `json:"model"`
+		Size    int    `json:"size"`
+		Rpm     any    `json:"rpm"`
 	}
 }
 
 type ApiError struct {
 	Parent  string `json:"parent"`
-	Node    string `json:"node,omitempty"`
+	Node    string `json:"node"`
 	Action  string `json:"action"`
 	Message string `json:"message"`
 }

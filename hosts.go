@@ -394,6 +394,7 @@ func getNodeStorageOverview(c *gin.Context) {
 				temporary.Content = v.Content
 				temporary.Enabled = v.Enabled
 				temporary.Shared = v.Shared
+				temporary.Type = v.Type
 				temporary.Storage = v.Storage
 				temporary.TotalGb = v.Total / (1024 * 1024 * 1024)
 				temporary.AvailableGb = v.Available / (1024 * 1024 * 1024)
@@ -435,7 +436,6 @@ func getNodeStorage(parent string, port int, apiToken string, node string) (host
 		log.Printf("Failed to process the request for %s - error %v", customUrl, err)
 		return hostStorageList{}, err
 	}
-
 	return nodeStorageObj, nil
 }
 
