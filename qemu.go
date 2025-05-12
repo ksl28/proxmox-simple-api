@@ -193,8 +193,9 @@ func vmDetailedOverview(c *gin.Context) {
 					if err == nil {
 						qemuCombined.Status = QemuGuestStatus{
 							Parent:         parentName,
+							Node:           vmObj.Node,
 							Name:           qemuStatus.Data.Name,
-							NodeStatus:     qemuStatus.Data.Status,
+							Status:         qemuStatus.Data.Status,
 							Agent:          qemuStatus.Data.Agent,
 							DiskreadMB:     qemuStatus.Data.Diskread / 1024 / 1024,
 							DiskwriteMB:    qemuStatus.Data.Diskwrite / 1024 / 1024,

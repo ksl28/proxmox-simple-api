@@ -200,8 +200,9 @@ type QemuGuestInfo struct {
 
 type QemuGuestStatus struct {
 	Parent         string  `json:"parent"`
+	Node           string  `json:"node"`
 	Name           string  `json:"name"`
-	NodeStatus     string  `json:"nodestatus"`
+	Status         string  `json:"status"`
 	Agent          int     `json:"agent"`
 	DiskreadMB     int     `json:"diskreadMB"`
 	DiskwriteMB    int     `json:"diskwriteMB"`
