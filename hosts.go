@@ -23,7 +23,10 @@ func testHostPort(host string, port int) (bool, error) {
 }
 
 func quickHostOverview(c *gin.Context) {
-	var results []nodeSummaryWrapper
+	var (
+		results []nodeSummaryWrapper
+		errors  []ApiError
+	)
 
 	jsonObjects, err := convertJSON()
 	if err != nil {
@@ -34,19 +37,35 @@ func quickHostOverview(c *gin.Context) {
 	for _, obj := range jsonObjects {
 		portOpen, err := testHostPort(obj.Parent, obj.Port)
 		if err != nil {
+			errors = append(errors, ApiError{
+				Parent:  obj.Parent,
+				Action:  "testHostPort",
+				Message: err.Error(),
+			})
 			log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Parent, err)
 			continue
 		}
 		if portOpen {
 			datacenterNodes, err := getDatacenterNodes(obj.Parent, obj.Port, obj.Token)
 			if err != nil {
-				log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Parent, err)
+				errors = append(errors, ApiError{
+					Parent:  obj.Parent,
+					Action:  "getDatacenterNodes",
+					Message: err.Error(),
+				})
+				log.Printf("Failed to obtain the datacenter nodes for %s - %v", obj.Parent, err)
 				continue
 			}
 			for _, xv := range datacenterNodes.Data {
 				var temporary nodeSummaryWrapper
 				//If the first object in the slice is empty / offline, then the struct will be limited to only show the fields that have values.
 				if xv.NodeStatus != "online" {
+					errors = append(errors, ApiError{
+						Parent:  obj.Parent,
+						Node:    xv.Node,
+						Action:  "onlineStatus",
+						Message: fmt.Sprintf("The node %s is offline", xv.Node),
+					})
 					temporary.Parent = obj.Parent
 					temporary.Node = xv.Node
 					temporary.NodeStatus = xv.NodeStatus
@@ -75,11 +94,19 @@ func quickHostOverview(c *gin.Context) {
 
 			}
 		} else {
+			errors = append(errors, ApiError{
+				Parent:  obj.Parent,
+				Action:  "testHostPort",
+				Message: fmt.Sprintf("The check to see if the port was open executed with success, but the parent appears to be offline or not listening on %d", obj.Port),
+			})
 			log.Printf("The server %s is not listening on %d", obj.Parent, obj.Port)
 			continue
 		}
 	}
-	c.JSON(http.StatusOK, results)
+	c.JSON(http.StatusOK, NodeSummaryResponse{
+		Data:   results,
+		Errors: errors,
+	})
 }
 
 func getDatacenterNodes(parent string, port int, apiToken string) (PVENodesObject, error) {
@@ -174,10 +201,12 @@ func detailedHostOverview(c *gin.Context) {
 			var detailedHost NodeDetails
 
 			if obj.NodeStatus != "online" {
-				detailedHost.NodeInfo.Node = obj.Node
-				detailedHost.NodeInfo.Parent = selectedObj.Parent
-				detailedHost.NodeInfo.NodeStatus = obj.NodeStatus
-				results = append(results, detailedHost)
+				errors = append(errors, ApiError{
+					Parent:  selectedObj.Parent,
+					Node:    obj.Node,
+					Action:  "onlineStatus",
+					Message: fmt.Sprintf("The node %s appears to be offline", obj.Node),
+				})
 				log.Printf("Skipping node %s - its offline", obj.Node)
 				continue
 			}
@@ -363,11 +392,12 @@ func getNodeStorageOverview(c *gin.Context) {
 
 		for _, clusterNode := range clusterNodes.Data {
 			if clusterNode.NodeStatus != "online" {
-				var temporary NodeStorageInfo
-				temporary.Parent = selectedObj.Parent
-				temporary.Node = clusterNode.Node
-				temporary.NodeStatus = clusterNode.NodeStatus
-				storageList.Data = append(storageList.Data, temporary)
+				errors = append(errors, ApiError{
+					Parent:  selectedObj.Parent,
+					Node:    clusterNode.Node,
+					Action:  "onlineStatus",
+					Message: fmt.Sprintf("The node %s appears to be offline", clusterNode.Node),
+				})
 				log.Printf("Skipping node %s - its offline", clusterNode.Node)
 				continue
 			}

@@ -173,6 +173,11 @@ type NodeStatusObject struct {
 	} `json:"data"`
 }
 
+type NodeSummaryResponse struct {
+	Data   []nodeSummaryWrapper `json:"data"`
+	Errors []ApiError           `json:"errors"`
+}
+
 type nodeSummaryWrapper struct {
 	Parent        string  `json:"parent"`
 	Node          string  `json:"node"`
@@ -188,7 +193,7 @@ type nodeSummaryWrapper struct {
 
 type QemuGuestWrapper struct {
 	Data   QemuGuestInfo `json:"data"`
-	Errors []ApiError    `json:"error"`
+	Errors []ApiError    `json:"errors"`
 }
 
 type QemuGuestInfo struct {

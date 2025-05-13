@@ -211,7 +211,7 @@ func vmDetailedOverview(c *gin.Context) {
 						log.Printf("Failed to obtain the status for the qemu %v - %v\n", vmObj.Vmid, err)
 					}
 
-					if qemuStatus.Data.Agent == 1 {
+					if qemuStatus.Data.Agent == 1 && qemuStatus.Data.Status == "running" {
 						qemuHostName, err := qemuGuestHostName(vmObj.Vmid, vmObj.Parent, selectedObj.Port, vmObj.Node, selectedObj.Token)
 						if err != nil {
 							errors = append(errors, ApiError{
@@ -257,6 +257,13 @@ func vmDetailedOverview(c *gin.Context) {
 						} else {
 							qemuCombined.NetworkInfo = qemuIpInfo
 						}
+					} else {
+						errors = append(errors, ApiError{
+							Parent:  selectedObj.Parent,
+							Node:    vmObj.Node,
+							Action:  "checkAgent",
+							Message: fmt.Sprintf("The VM %s is either not powered on or have an agent installed in the Guest OS - skipping guest inventory.", vmObj.Name),
+						})
 					}
 
 					result.Data = qemuCombined
