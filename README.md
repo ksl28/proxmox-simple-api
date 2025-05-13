@@ -64,13 +64,11 @@ To run the program from Powershell:
 ```Powershell
 $objects = @(
     @{
-        Type  = "cluster"
         Name  = "parent01.domain.tld"
         Token = "<API Token>"
         Port  = 8006
     },
     @{
-        Type  = "node"
         Name  = "parent02.domain.tld"
         Token = "<API Token>"
         Port  = 8006

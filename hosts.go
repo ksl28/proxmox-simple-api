@@ -560,6 +560,8 @@ func getNodeDiskOverview(c *gin.Context) {
 						Action:  "onlineStatus",
 						Message: fmt.Sprintf("The node %s appears to be offline", node.Node),
 					}
+					// Sends an empty response, so the the channel is not blocked
+					ch <- disks
 					log.Printf("Skipping node %s - its offline", node.Node)
 					return
 				}
