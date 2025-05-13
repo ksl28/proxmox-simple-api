@@ -374,9 +374,8 @@ type NodeDiskInfo struct {
 	Type       string `json:"type"`
 	Wearout    int    `json:"wearout"`
 	Serial     string `json:"serial"`
-	UsedGb     int    `json:"used"`
+	SizeGb     int    `json:"sizeGb"`
 	Model      string `json:"model"`
-	Size       int    `json:"size"`
 	Rpm        any    `json:"rpm"`
 }
 

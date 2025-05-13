@@ -517,13 +517,19 @@ func getNodeDiskOverview(c *gin.Context) {
 			return
 		}
 
-		ch := make(chan NodeDiskInfo, len(clusterNodes.Data))
+		ch := make(chan []NodeDiskInfo, len(clusterNodes.Data))
 		errCh := make(chan ApiError, len(clusterNodes.Data)*2)
 		for _, clusterNode := range clusterNodes.Data {
 			node := clusterNode
 			go func() {
+				var disks []NodeDiskInfo
 				if node.NodeStatus != "online" {
-					ch <- NodeDiskInfo{Parent: selectedObj.Parent, Node: node.Node, NodeStatus: node.NodeStatus}
+					errCh <- ApiError{
+						Parent:  selectedObj.Parent,
+						Node:    node.Node,
+						Action:  "onlineStatus",
+						Message: fmt.Sprintf("The node %s appears to be offline", node.Node),
+					}
 					log.Printf("Skipping node %s - its offline", node.Node)
 					return
 				}
@@ -572,17 +578,20 @@ func getNodeDiskOverview(c *gin.Context) {
 					temporary.Type = v.Type
 					temporary.Serial = v.Serial
 					temporary.Model = v.Model
-					temporary.UsedGb = v.Size / (1024 * 1024 * 1024)
+					temporary.SizeGb = v.Size / (1024 * 1024 * 1024)
 
-					ch <- temporary
+					disks = append(disks, temporary)
 
 				}
+
+				ch <- disks
 
 			}()
 		}
 
-		for i := 0; i < len(clusterNodes.Data); i++ {
-			diskList.Data = append(diskList.Data, <-ch)
+		for range clusterNodes.Data {
+			batch := <-ch
+			diskList.Data = append(diskList.Data, batch...)
 		}
 
 		for len(errCh) > 0 {
