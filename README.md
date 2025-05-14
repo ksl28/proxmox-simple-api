@@ -103,8 +103,8 @@ spec:
             - name: OBJECTS_JSON
               value: |
                 [
-                  {"Type":"cluster","Name":"parent01.domain.tld","Token":"<API Token>","Port":8006},
-                  {"Type":"node","Name":"parent02.domain.tld","Token":"<API Token>","Port":8006}
+                  {"Name":"parent01.domain.tld","Token":"<API Token>","Port":8006},
+                  {"Name":"parent02.domain.tld","Token":"<API Token>","Port":8006}
                 ]
 
 ```
