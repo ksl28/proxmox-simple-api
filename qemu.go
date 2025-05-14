@@ -26,77 +26,78 @@ func vmSummary(c *gin.Context) {
 	errCh := make(chan ApiError, len(parentObjects)*2)
 	var wg sync.WaitGroup
 	wg.Add(len(parentObjects))
-	for _, obj := range parentObjects {
-		go func(obj PVEConnectionObject) {
+	for _, host := range parentObjects {
+		go func(host PVEConnectionObject) {
 			defer wg.Done()
 			var vmSlice []VmSummary
-			v, err := testHostPort(obj.Parent, obj.Port)
+			portOpen, err := testHostPort(host.Parent, host.Port)
 			if err != nil {
-				log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Parent, err)
+				log.Printf("Failed to check if the port %d for %s is open - %v", host.Port, host.Parent, err)
 			}
-			if v {
-				datacenterNodes, err := getDatacenterNodes(obj.Parent, obj.Port, obj.Token)
+			if portOpen {
+				parentNodes, err := getParentNodes(host.Parent, host.Port, host.Token)
 				if err != nil {
 					errCh <- ApiError{
-						Parent:  obj.Parent,
-						Action:  "getDatacenterNodes",
+						Parent:  host.Parent,
+						Action:  "getParentNodes",
 						Message: err.Error(),
 					}
-					log.Printf("Failed to obtain the datacenter nodes for %s - %v", obj.Parent, err)
+					log.Printf("Failed to obtain the datacenter nodes for %s - %v", host.Parent, err)
 				}
 
-				for _, singleNode := range datacenterNodes.Data {
-					if singleNode.NodeStatus != "online" {
+				for _, node := range parentNodes.Data {
+					if node.NodeStatus != "online" {
 						errCh <- ApiError{
-							Parent:  obj.Parent,
-							Node:    singleNode.Node,
+							Parent:  host.Parent,
+							Node:    node.Node,
 							Action:  "onlineStatus",
-							Message: fmt.Sprintf("The node %s appears to be offline according to Proxmox", singleNode.Node),
+							Message: fmt.Sprintf("The node %s appears to be offline according to Proxmox", node.Node),
 						}
-						log.Printf("Skipping node %s (offline)", singleNode.Node)
+						log.Printf("Skipping node %s (offline)", node.Node)
 						continue
 					}
 
-					customUrl := fmt.Sprintf("https://%s:%d/api2/json/nodes/%v/qemu", obj.Parent, obj.Port, singleNode.Node)
-					req, err := http.NewRequest(http.MethodGet, customUrl, nil)
+					vmNodeUrl := fmt.Sprintf("https://%s:%d/api2/json/nodes/%v/qemu", host.Parent, host.Port, node.Node)
+					req, err := http.NewRequest(http.MethodGet, vmNodeUrl, nil)
 					if err != nil {
 						errCh <- ApiError{
-							Parent:  obj.Parent,
-							Node:    singleNode.Node,
+							Parent:  host.Parent,
+							Node:    node.Node,
 							Action:  "createRequest",
 							Message: err.Error(),
 						}
-						log.Printf("Failed to create HTTP request for %v - %v", singleNode.Node, err)
+						log.Printf("Failed to create HTTP request for %v - %v", node.Node, err)
 						continue
 					}
 
-					var nodeVms VmSummaryObject
-					if err := sendRequest(req, &nodeVms, obj.Token); err != nil {
+					var vmWrapper VmSummaryObject
+					if err := sendRequest(req, &vmWrapper, host.Token); err != nil {
 						errCh <- ApiError{
-							Parent:  obj.Parent,
-							Node:    singleNode.Node,
+							Parent:  host.Parent,
+							Node:    node.Node,
 							Action:  "sendRequest",
 							Message: err.Error(),
 						}
-						log.Printf("Failed to process the request for %s - error %v", customUrl, err)
+						log.Printf("Failed to process the request for %s - error %v", vmNodeUrl, err)
 						continue
 					}
 
-					for i := range nodeVms.Data {
-						nodeVms.Data[i].Parent = obj.Parent
-						nodeVms.Data[i].Node = singleNode.Node
-						nodeVms.Data[i].NodeStatus = singleNode.NodeStatus
-						nodeVms.Data[i].MaxMemoryGb = nodeVms.Data[i].MaxMemoryGb / 1024 / 1024
-						nodeVms.Data[i].GuestMemoryGb = nodeVms.Data[i].GuestMemoryGb / 1024 / 1024
+					for i := range vmWrapper.Data {
+						vmWrapper.Data[i].Parent = host.Parent
+						vmWrapper.Data[i].Node = node.Node
+						vmWrapper.Data[i].NodeStatus = node.NodeStatus
+						vmWrapper.Data[i].MaxMemoryGb = vmWrapper.Data[i].MaxMemoryGb / 1024 / 1024
+						vmWrapper.Data[i].GuestMemoryGb = vmWrapper.Data[i].GuestMemoryGb / 1024 / 1024
+						vmWrapper.Data[i].UptimeHours = vmWrapper.Data[i].Uptime / 3600
 
 					}
 
-					vmSlice = append(vmSlice, nodeVms.Data...)
+					vmSlice = append(vmSlice, vmWrapper.Data...)
 					ch <- vmSlice
 				}
 
 			}
-		}(obj)
+		}(host)
 	}
 	for range parentObjects {
 		batch := <-ch
@@ -132,31 +133,31 @@ func vmDetailedOverview(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to convert the JSON data - %v", err)})
 		return
 	}
-	for _, selectedObj := range parentObjects {
-		if selectedObj.Parent == parentName {
-			v, err := testHostPort(selectedObj.Parent, selectedObj.Port)
+	for _, host := range parentObjects {
+		if host.Parent == parentName {
+			portOpen, err := testHostPort(host.Parent, host.Port)
 			if err != nil {
 				errors = append(errors, ApiError{
-					Parent:  selectedObj.Parent,
+					Parent:  host.Parent,
 					Action:  "testHostPort",
 					Message: err.Error(),
 				})
-				log.Printf("Failed to check if the port was open on %s:%d - %v", selectedObj.Parent, selectedObj.Port, err)
+				log.Printf("Failed to check if the port was open on %s:%d - %v", host.Parent, host.Port, err)
 				c.JSON(http.StatusBadGateway, QemuGuestWrapper{
 					Data:   result.Data,
 					Errors: errors,
 				})
 				return
 			}
-			if v {
-				datacenterNodes, err := getDatacenterNodes(selectedObj.Parent, selectedObj.Port, selectedObj.Token)
+			if portOpen {
+				parentNodes, err := getParentNodes(host.Parent, host.Port, host.Token)
 				if err != nil {
 					errors = append(errors, ApiError{
-						Parent:  selectedObj.Parent,
+						Parent:  host.Parent,
 						Action:  "testHostPort",
 						Message: err.Error(),
 					})
-					log.Printf("Failed to obtain the cluster nodes for %s - %v", selectedObj.Parent, err)
+					log.Printf("Failed to obtain the cluster nodes for %s - %v", host.Parent, err)
 					c.JSON(http.StatusInternalServerError, QemuGuestWrapper{
 						Data:   result.Data,
 						Errors: errors,
@@ -164,20 +165,20 @@ func vmDetailedOverview(c *gin.Context) {
 					return
 				}
 				var vmObj GuestInfo
-				for _, datacenterNode := range datacenterNodes.Data {
-					if datacenterNode.NodeStatus != "online" {
-						log.Printf("Skipping node %s (offline)", datacenterNode.Node)
+				for _, node := range parentNodes.Data {
+					if node.NodeStatus != "online" {
+						log.Printf("Skipping node %s (offline)", node.Node)
 						continue
 					}
-					guestsResult, err := nodeGuestsOverview("qemu", selectedObj.Parent, selectedObj.Port, datacenterNode.Node, selectedObj.Token)
+					guestsResult, err := nodeGuestsOverview("qemu", host.Parent, host.Port, node.Node, host.Token)
 					if err != nil {
 						errors = append(errors, ApiError{
-							Parent:  selectedObj.Parent,
-							Node:    datacenterNode.Node,
+							Parent:  host.Parent,
+							Node:    node.Node,
 							Action:  "nodeGuestsOverview",
-							Message: fmt.Sprintf("Failed to get the guests for %v - %v", selectedObj.Parent, err),
+							Message: fmt.Sprintf("Failed to get the guests for %v - %v", host.Parent, err),
 						})
-						log.Printf("Failed to get the guests for %v - %v", selectedObj.Parent, err)
+						log.Printf("Failed to get the guests for %v - %v", host.Parent, err)
 						continue
 					}
 					for _, guest := range guestsResult.Data {
@@ -189,7 +190,7 @@ func vmDetailedOverview(c *gin.Context) {
 
 				if vmObj.Vmid != 0 {
 					var qemuCombined QemuGuestInfo
-					qemuStatus, err := qemuCurrentStatus(vmObj.Vmid, vmObj.Parent, selectedObj.Port, vmObj.Node, selectedObj.Token)
+					qemuStatus, err := qemuCurrentStatus(vmObj.Vmid, host.Parent, host.Port, vmObj.Node, host.Token)
 					if err == nil {
 						qemuCombined.Status = QemuGuestStatus{
 							Parent:         parentName,
@@ -212,10 +213,10 @@ func vmDetailedOverview(c *gin.Context) {
 					}
 
 					if qemuStatus.Data.Agent == 1 && qemuStatus.Data.Status == "running" {
-						qemuHostName, err := qemuGuestHostName(vmObj.Vmid, vmObj.Parent, selectedObj.Port, vmObj.Node, selectedObj.Token)
+						qemuHostName, err := qemuGuestHostName(vmObj.Vmid, host.Parent, host.Port, vmObj.Node, host.Token)
 						if err != nil {
 							errors = append(errors, ApiError{
-								Parent:  selectedObj.Parent,
+								Parent:  host.Parent,
 								Node:    vmObj.Node,
 								Action:  "qemuGuestHostName",
 								Message: err.Error(),
@@ -227,10 +228,10 @@ func vmDetailedOverview(c *gin.Context) {
 							}
 						}
 
-						qemuOsInfo, err := qemuGuestOsInfo(vmObj.Vmid, vmObj.Parent, selectedObj.Port, vmObj.Node, selectedObj.Token)
+						qemuOsInfo, err := qemuGuestOsInfo(vmObj.Vmid, host.Parent, host.Port, vmObj.Node, host.Token)
 						if err != nil {
 							errors = append(errors, ApiError{
-								Parent:  selectedObj.Parent,
+								Parent:  host.Parent,
 								Node:    vmObj.Node,
 								Action:  "qemuGuestOsInfo",
 								Message: err.Error(),
@@ -245,10 +246,10 @@ func vmDetailedOverview(c *gin.Context) {
 							}
 						}
 
-						qemuIpInfo, err := qemuGuestIpInfo(vmObj.Vmid, vmObj.Parent, selectedObj.Port, vmObj.Node, selectedObj.Token)
+						qemuIpInfo, err := qemuGuestIpInfo(vmObj.Vmid, host.Parent, host.Port, vmObj.Node, host.Token)
 						if err != nil {
 							errors = append(errors, ApiError{
-								Parent:  selectedObj.Parent,
+								Parent:  host.Parent,
 								Node:    vmObj.Node,
 								Action:  "qemuGuestIpInfo",
 								Message: err.Error(),
@@ -259,7 +260,7 @@ func vmDetailedOverview(c *gin.Context) {
 						}
 					} else {
 						errors = append(errors, ApiError{
-							Parent:  selectedObj.Parent,
+							Parent:  host.Parent,
 							Node:    vmObj.Node,
 							Action:  "checkAgent",
 							Message: fmt.Sprintf("The VM %s is either not powered on or have an agent installed in the Guest OS - skipping guest inventory.", vmObj.Name),
@@ -275,9 +276,9 @@ func vmDetailedOverview(c *gin.Context) {
 				c.JSON(http.StatusBadGateway, QemuGuestWrapper{
 					Data: result.Data,
 					Errors: append(errors, ApiError{
-						Parent:  selectedObj.Parent,
+						Parent:  host.Parent,
 						Action:  "testHostPort",
-						Message: fmt.Sprintf("port %d closed", selectedObj.Port),
+						Message: fmt.Sprintf("port %d closed", host.Port),
 					}),
 				})
 				return

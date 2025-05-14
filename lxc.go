@@ -20,32 +20,32 @@ func lxcSummary(c *gin.Context) {
 		errors []ApiError
 	)
 
-	for _, obj := range parentObjects {
-		portOpen, err := testHostPort(obj.Parent, obj.Port)
+	for _, host := range parentObjects {
+		portOpen, err := testHostPort(host.Parent, host.Port)
 		if err != nil {
 			errors = append(errors, ApiError{
-				Parent:  obj.Parent,
+				Parent:  host.Parent,
 				Action:  "testHostPort",
 				Message: err.Error(),
 			})
-			log.Printf("Failed to check if the port %d for %s is open - %v", obj.Port, obj.Parent, err)
+			log.Printf("Failed to check if the port %d for %s is open - %v", host.Port, host.Parent, err)
 			continue
 		}
 		if portOpen {
-			datacenterNodes, err := getDatacenterNodes(obj.Parent, obj.Port, obj.Token)
+			parentNodes, err := getParentNodes(host.Parent, host.Port, host.Token)
 			if err != nil {
 				errors = append(errors, ApiError{
-					Parent:  obj.Parent,
-					Action:  "getDatacenterNodes",
+					Parent:  host.Parent,
+					Action:  "getParentNodes",
 					Message: err.Error(),
 				})
-				log.Printf("Failed to obtain the datacenter nodes for %s - %v", obj.Parent, err)
+				log.Printf("Failed to obtain the datacenter nodes for %s - %v", host.Parent, err)
 				continue
 			}
-			for _, node := range datacenterNodes.Data {
+			for _, node := range parentNodes.Data {
 				if node.NodeStatus != "online" {
 					errors = append(errors, ApiError{
-						Parent:  obj.Parent,
+						Parent:  host.Parent,
 						Node:    node.Node,
 						Action:  "onlineStatus",
 						Message: fmt.Sprintf("The node %s is offline according to Proxmox", node.Node),
@@ -53,11 +53,11 @@ func lxcSummary(c *gin.Context) {
 					log.Printf("Skipping node %s - its offline", node.Node)
 					continue
 				}
-				lxcNodeUrl := fmt.Sprintf("https://%s:%d/api2/json/nodes/%v/lxc", obj.Parent, obj.Port, node.Node)
+				lxcNodeUrl := fmt.Sprintf("https://%s:%d/api2/json/nodes/%v/lxc", host.Parent, host.Port, node.Node)
 				req, err := http.NewRequest(http.MethodGet, lxcNodeUrl, nil)
 				if err != nil {
 					errors = append(errors, ApiError{
-						Parent:  obj.Parent,
+						Parent:  host.Parent,
 						Node:    node.Node,
 						Action:  "createRequest",
 						Message: err.Error(),
@@ -66,10 +66,10 @@ func lxcSummary(c *gin.Context) {
 					continue
 				}
 
-				var temporary LxcEntryObject
-				if err := sendRequest(req, &temporary, obj.Token); err != nil {
+				var details LxcEntryObject
+				if err := sendRequest(req, &details, host.Token); err != nil {
 					errors = append(errors, ApiError{
-						Parent:  obj.Parent,
+						Parent:  host.Parent,
 						Node:    node.Node,
 						Action:  "fetchLXC",
 						Message: err.Error(),
@@ -78,22 +78,22 @@ func lxcSummary(c *gin.Context) {
 					continue
 				}
 
-				for _, v := range temporary.Data {
+				for _, entry := range details.Data {
 					allLxc = append(allLxc, LxcInfo{
-						Parent:      obj.Parent,
+						Parent:      host.Parent,
 						Node:        node.Node,
 						NodeStatus:  node.NodeStatus,
-						DiskreadMb:  v.Diskread / (1024 * 1024),
-						DiskwriteMb: v.Diskwrite / (1024 * 1024),
-						MaxMemoryMb: v.MaxMemory / (1024 * 1024),
-						MemoryMb:    v.Memory / (1024 * 1024),
-						NetinMb:     v.Netin / (1024 * 1024),
-						NetoutMb:    v.Netout / (1024 * 1024),
-						Name:        v.Name,
-						UptimeHours: v.Uptime / (60 * 60),
-						Tags:        v.Tags,
-						Status:      v.Status,
-						Vmid:        v.Vmid,
+						DiskreadMb:  entry.Diskread / (1024 * 1024),
+						DiskwriteMb: entry.Diskwrite / (1024 * 1024),
+						MaxMemoryMb: entry.MaxMemory / (1024 * 1024),
+						MemoryMb:    entry.Memory / (1024 * 1024),
+						NetinMb:     entry.Netin / (1024 * 1024),
+						NetoutMb:    entry.Netout / (1024 * 1024),
+						Name:        entry.Name,
+						UptimeHours: entry.Uptime / (60 * 60),
+						Tags:        entry.Tags,
+						Status:      entry.Status,
+						Vmid:        entry.Vmid,
 					})
 				}
 			}

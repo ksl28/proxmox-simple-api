@@ -49,6 +49,7 @@ type VmSummary struct {
 	GuestMemoryGb int    `json:"mem"`
 	MaxMemoryGb   int    `json:"maxMem"`
 	Uptime        int    `json:"uptime"`
+	UptimeHours   int    `json:"uptimeHours"`
 }
 
 type NodeDetailsResponse struct {
