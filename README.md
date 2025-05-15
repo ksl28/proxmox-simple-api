@@ -37,14 +37,14 @@ Simple API written in Go, that allows you to collect info from multiple Proxmox 
 - **`GET /api/v1/infrastructure/nodes/summary`**  
   Returns a summary of CPU, memory, and disk usage for all configured parents and their nodes.
 
-- **`GET /api/v1/infrastructure/nodes/detailed/:name`**  
-  Returns detailed information (CPU, memory, network, kernel, etc.) for the node identified by `:name`.
+- **`GET /api/v1/infrastructure/nodes/detailed/:parent`**  
+  Returns detailed information (CPU, memory, network, kernel, etc.) for the node identified by `:parent`.
 
-- **`GET /api/v1/infrastructure/nodes/detailed/:name/storage`**  
-  Returns a per-volume storage overview for the node `:name`, including total, used, and available space.
+- **`GET /api/v1/infrastructure/nodes/detailed/:parent/storage`**  
+  Returns a per-volume storage overview for the node `:parent`, including total, used, and available space.
 
-- **`GET /api/v1/infrastructure/nodes/detailed/:name/disks`**  
-  Returns a per-disk health and usage overview for the node `:name`, including vendor, serial, and capacity.
+- **`GET /api/v1/infrastructure/nodes/detailed/:parent/disks`**  
+  Returns a per-disk health and usage overview for the node `:parent`, including vendor, serial, and capacity.
   > **Note:** The API used for getting the disks can take several seconds to finish - with several nodes, this will likely cause this API to become slow.
 
 - **`GET /api/v1/virtualization/vm/summary`**  
