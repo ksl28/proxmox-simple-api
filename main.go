@@ -60,6 +60,15 @@ func main() {
 	}
 
 	router := gin.Default()
+
+	trustedProxy, ok := os.LookupEnv("trusted_proxy")
+	if ok {
+		router.SetTrustedProxies([]string{trustedProxy})
+		log.Printf("A trusted proxy was defined - %s", trustedProxy)
+	} else {
+		router.SetTrustedProxies([]string{})
+		log.Printf("No trusted proxies were defined")
+	}
 	router.GET("/api/v1/infrastructure/nodes/summary", quickHostOverview)
 	router.GET("/api/v1/infrastructure/nodes/detailed/:parent", detailedHostOverview)
 	router.GET("/api/v1/infrastructure/nodes/detailed/:parent/storage", getNodeStorageOverview)

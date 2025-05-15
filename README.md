@@ -22,7 +22,7 @@ Simple API written in Go, that allows you to collect info from multiple Proxmox 
 > This API does **not** include any authentication or authorization mechanisms.  
 > You must secure access (e.g. via network policies, API gateway, or reverse proxy with auth) before exposing it in production.
 
-
+> **Note:** By default the API does not trust any proxies (X-Forward-For) - you can change this, by configuring the `trusted_proxy` environment variable.
 
 ## Key Concepts
 
