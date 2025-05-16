@@ -27,7 +27,7 @@ Simple API written in Go, that allows you to collect info from multiple Proxmox 
 ## Key Concepts
 
 - **Parent**  
-  A Proxmox node in the cluster that serves as the entry point for API calls.
+  The top-level entity in a Proxmox environment. In a cluster, a parent refers to any node within that cluster, as API calls can target any of them. It can also be a standalone node in another datacenter. The parent acts as the entry point for API communication.
 
 - **API Token**  
   The `Token` should be formatted as `PVEAPIToken=<user>@<realm>!<tokenid>=<secret>`
